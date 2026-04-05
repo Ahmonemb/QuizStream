@@ -24,7 +24,6 @@ import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { useAppState } from "@/context/AppStateContext";
 import {
-  CourseQuizSetup,
   DEFAULT_COURSE_QUIZ_SETUP,
   normalizeCourseQuizSetup,
 } from "@/lib/app-types";
@@ -41,9 +40,10 @@ const sessionQuestionTypes = [
 interface AddCourseModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onCourseCreated?: () => void;
 }
 
-const AddCourseModal = ({ open, onOpenChange }: AddCourseModalProps) => {
+const AddCourseModal = ({ open, onOpenChange, onCourseCreated }: AddCourseModalProps) => {
   const { user, refreshCourses, saveCourseQuizSetup } = useAppState();
   const [isDragging, setIsDragging] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -123,6 +123,7 @@ const AddCourseModal = ({ open, onOpenChange }: AddCourseModalProps) => {
 
       saveCourseQuizSetup(uploadedVideo.id, quizSetup);
       await refreshCourses(uploadedVideo.id);
+      onCourseCreated?.();
       onOpenChange(false);
     } catch (error) {
       setUploadError(error instanceof Error ? error.message : "Upload failed. Please try again.");
@@ -133,16 +134,16 @@ const AddCourseModal = ({ open, onOpenChange }: AddCourseModalProps) => {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto rounded-3xl border-border/70 p-0">
+      <DialogContent className="max-h-[88vh] max-w-[860px] overflow-y-auto rounded-3xl border-border/70 p-0">
         <div className="bg-card">
-          <DialogHeader className="space-y-2 border-b border-border px-6 py-5 text-left">
-            <DialogTitle className="text-2xl">Add a course to {firstName}&apos;s library</DialogTitle>
+          <DialogHeader className="space-y-1.5 border-b border-border px-4 py-3.5 text-left sm:px-5">
+            <DialogTitle className="text-xl">Add a course to {firstName}&apos;s library</DialogTitle>
             <DialogDescription>
               Import an MP4, choose the quiz style you want, and QuizStream will create a playable course using the current backend upload flow.
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-6 px-6 py-6">
+          <div className="space-y-4 px-4 py-4 sm:px-5 sm:py-5">
             <div
               onDragOver={(event) => {
                 event.preventDefault();
@@ -150,7 +151,7 @@ const AddCourseModal = ({ open, onOpenChange }: AddCourseModalProps) => {
               }}
               onDragLeave={() => setIsDragging(false)}
               onDrop={handleDrop}
-              className={`relative rounded-2xl border-2 border-dashed p-10 text-center transition-all ${
+              className={`relative rounded-2xl border-2 border-dashed p-7 text-center transition-all sm:p-8 ${
                 isDragging
                   ? "border-primary bg-primary/5"
                   : selectedFile
@@ -165,7 +166,7 @@ const AddCourseModal = ({ open, onOpenChange }: AddCourseModalProps) => {
                 className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
               />
               {selectedFile ? (
-                <div className="flex flex-col items-center gap-3">
+                <div className="flex flex-col items-center gap-2.5">
                   <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-success/10">
                     <FileVideo className="h-7 w-7 text-success" />
                   </div>
@@ -173,7 +174,7 @@ const AddCourseModal = ({ open, onOpenChange }: AddCourseModalProps) => {
                   <p className="text-xs text-muted-foreground">Click or drag a new recording to replace it.</p>
                 </div>
               ) : (
-                <div className="flex flex-col items-center gap-3">
+                <div className="flex flex-col items-center gap-2.5">
                   <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10">
                     <Upload className="h-7 w-7 text-primary" />
                   </div>
@@ -183,31 +184,31 @@ const AddCourseModal = ({ open, onOpenChange }: AddCourseModalProps) => {
               )}
             </div>
 
-            <div className="rounded-2xl bg-card card-shadow space-y-4">
+            <div className="space-y-3">
               <div className="flex items-center gap-2">
                 <Sparkles className="h-5 w-5 text-tertiary" />
                 <h2 className="text-base font-semibold text-foreground">Question mix</h2>
               </div>
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+              <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
                 {sessionQuestionTypes.map((questionType) => (
                   <button
                     key={questionType.id}
                     onClick={() => toggleQuestionType(questionType.id)}
-                    className={`rounded-xl border p-4 text-left transition-all ${
+                    className={`rounded-xl border p-3 text-left transition-all ${
                       selectedQuestionTypes.has(questionType.id)
                         ? "border-primary bg-accent ring-1 ring-primary/20"
                         : "border-border hover:border-primary/40"
                     }`}
                   >
-                    <questionType.icon className="mb-2 h-5 w-5 text-primary" />
+                    <questionType.icon className="mb-1.5 h-4 w-4 text-primary" />
                     <p className="text-sm font-semibold text-foreground">{questionType.label}</p>
-                    <p className="mt-0.5 text-xs text-muted-foreground">{questionType.description}</p>
+                    <p className="mt-0.5 text-[11px] leading-4 text-muted-foreground">{questionType.description}</p>
                   </button>
                 ))}
               </div>
             </div>
 
-            <div className="rounded-2xl bg-card card-shadow space-y-4">
+            <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <h2 className="text-base font-semibold text-foreground">Question target</h2>
                 <span className="text-2xl font-bold text-primary">{questionTarget[0]}</span>
@@ -226,7 +227,7 @@ const AddCourseModal = ({ open, onOpenChange }: AddCourseModalProps) => {
               </div>
             </div>
 
-            <div className="rounded-2xl bg-card card-shadow space-y-5">
+            <div className="space-y-3.5">
               <div className="flex items-center gap-2">
                 <Sparkles className="h-5 w-5 text-warning" />
                 <h2 className="text-base font-semibold text-foreground">Session options</h2>
@@ -238,10 +239,10 @@ const AddCourseModal = ({ open, onOpenChange }: AddCourseModalProps) => {
                 { key: "queueReview" as const, label: "Queue spaced review", description: "Send missed checkpoints into the follow-up review list." },
                 { key: "allowRetakes" as const, label: "Allow one retry", description: "Let learners take a second attempt on incorrect answers." },
               ].map((sessionOption) => (
-                <div key={sessionOption.key} className="flex items-center justify-between py-1">
+                <div key={sessionOption.key} className="flex items-center justify-between gap-4 py-0.5">
                   <div>
                     <Label className="text-sm font-medium text-foreground">{sessionOption.label}</Label>
-                    <p className="mt-0.5 text-xs text-muted-foreground">{sessionOption.description}</p>
+                    <p className="mt-0.5 text-[11px] leading-4 text-muted-foreground">{sessionOption.description}</p>
                   </div>
                   <Switch
                     checked={sessionOptions[sessionOption.key]}
@@ -258,8 +259,8 @@ const AddCourseModal = ({ open, onOpenChange }: AddCourseModalProps) => {
               </div>
             )}
 
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <p className="text-xs text-muted-foreground">
+            <div className="flex flex-col gap-2 border-t border-border/70 pt-3 sm:flex-row sm:items-center sm:justify-between">
+              <p className="pr-2 text-xs text-muted-foreground">
                 Prototype note: the MP4 still uploads through the existing local backend, and the selected quiz setup is saved in localStorage for this course.
               </p>
               <Button onClick={handleCreateCourse} disabled={isUploading || !selectedFile} className="rounded-xl">

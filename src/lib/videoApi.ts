@@ -33,6 +33,18 @@ export async function uploadVideoFile(file: File) {
   return (await response.json()) as UploadedVideo;
 }
 
+export async function deleteVideoFile(videoId: string) {
+  const response = await fetch(`/api/videos/${videoId}`, {
+    method: "DELETE",
+  });
+
+  if (!response.ok) {
+    throw new Error(await getApiError(response, "Delete failed."));
+  }
+
+  return (await response.json()) as { success: boolean; id: string };
+}
+
 async function getApiError(response: Response, fallbackMessage: string) {
   try {
     const payload = (await response.json()) as { error?: string };
