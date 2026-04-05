@@ -1,6 +1,6 @@
 import { Home, BookOpen, BarChart3, Settings } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
-import { navItems } from "@/data/courseData";
+import { navItems } from "@/lib/navigation";
 
 const mobileIconMap = {
   Home,

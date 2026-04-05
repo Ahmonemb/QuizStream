@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { CheckCircle2, XCircle, X } from "lucide-react";
-import { Checkpoint } from "@/data/courseData";
+import { Checkpoint } from "@/lib/app-types";
 
 interface QuizModalProps {
   checkpoint: Checkpoint;

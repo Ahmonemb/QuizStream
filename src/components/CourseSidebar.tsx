@@ -5,8 +5,9 @@ import {
   Settings,
   GraduationCap,
 } from "lucide-react";
-import { learnerProfile, navItems } from "@/data/courseData";
 import { useLocation, Link } from "react-router-dom";
+import { useAppState } from "@/context/AppStateContext";
+import { navItems } from "@/lib/navigation";
 
 const iconMap: Record<string, React.ElementType> = {
   Home,
@@ -17,6 +18,7 @@ const iconMap: Record<string, React.ElementType> = {
 
 const CourseSidebar = () => {
   const location = useLocation();
+  const { user } = useAppState();
 
   return (
     <aside className="hidden lg:flex flex-col w-60 bg-card border-r border-border h-screen sticky top-0 shrink-0">
@@ -50,11 +52,11 @@ const CourseSidebar = () => {
       <div className="p-4 border-t border-border">
         <div className="flex items-center gap-3">
           <div className="h-9 w-9 rounded-full bg-primary flex items-center justify-center text-primary-foreground text-sm font-semibold">
-            {learnerProfile.initials}
+            {user?.initials ?? "QS"}
           </div>
           <div className="text-sm">
-            <p className="font-medium text-foreground">{learnerProfile.name}</p>
-            <p className="text-muted-foreground text-xs">{learnerProfile.plan}</p>
+            <p className="font-medium text-foreground">{user?.name ?? "QuizStream"}</p>
+            <p className="text-muted-foreground text-xs">{user?.plan ?? "Personal Workspace"}</p>
           </div>
         </div>
       </div>

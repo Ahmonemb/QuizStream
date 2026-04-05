@@ -1,15 +1,17 @@
 import { useState } from "react";
-import { noteEntries, transcriptSegments, Checkpoint } from "@/data/courseData";
+import { Checkpoint, NoteEntry, TranscriptSegment } from "@/lib/app-types";
 
 interface TranscriptTabsProps {
   currentTime: number;
   checkpoints: Checkpoint[];
+  transcriptSegments: TranscriptSegment[];
+  noteEntries: NoteEntry[];
   onSeek: (time: number) => void;
 }
 
 const tabs = ["Transcript", "Notes", "Quiz Review"] as const;
 
-const TranscriptTabs = ({ currentTime, checkpoints, onSeek }: TranscriptTabsProps) => {
+const TranscriptTabs = ({ currentTime, checkpoints, transcriptSegments, noteEntries, onSeek }: TranscriptTabsProps) => {
   const [activeTab, setActiveTab] = useState<(typeof tabs)[number]>("Transcript");
 
   const formatTime = (seconds: number) => {
@@ -42,7 +44,7 @@ const TranscriptTabs = ({ currentTime, checkpoints, onSeek }: TranscriptTabsProp
       <div className="p-5 max-h-64 overflow-y-auto">
         {activeTab === "Transcript" && (
           <div className="space-y-1">
-            {transcriptSegments.map((segment, index) => {
+            {transcriptSegments.length > 0 ? transcriptSegments.map((segment, index) => {
               const nextTime = transcriptSegments[index + 1]?.time ?? Infinity;
               const isActive = currentTime >= segment.time && currentTime < nextTime;
 
@@ -62,13 +64,17 @@ const TranscriptTabs = ({ currentTime, checkpoints, onSeek }: TranscriptTabsProp
                   </span>
                 </button>
               );
-            })}
+            }) : (
+              <div className="rounded-xl border border-dashed border-border px-4 py-6 text-sm text-muted-foreground">
+                Select or upload a lesson to generate transcript guidance for this study session.
+              </div>
+            )}
           </div>
         )}
 
         {activeTab === "Notes" && (
           <div className="space-y-3">
-            {noteEntries.map((note) => (
+            {noteEntries.length > 0 ? noteEntries.map((note) => (
               <button
                 key={note.id}
                 onClick={() => onSeek(note.time)}
@@ -80,13 +86,17 @@ const TranscriptTabs = ({ currentTime, checkpoints, onSeek }: TranscriptTabsProp
                 </div>
                 <p className="text-sm text-muted-foreground">{note.content}</p>
               </button>
-            ))}
+            )) : (
+              <div className="rounded-xl border border-dashed border-border px-4 py-6 text-sm text-muted-foreground">
+                Notes will appear here once QuizStream has a lesson selected to anchor the playback experience.
+              </div>
+            )}
           </div>
         )}
 
         {activeTab === "Quiz Review" && (
           <div className="space-y-3">
-            {checkpoints.filter((checkpoint) => checkpoint.status === "completed" || checkpoint.status === "incorrect").map((checkpoint) => (
+            {checkpoints.filter((checkpoint) => checkpoint.status === "completed" || checkpoint.status === "incorrect").length > 0 ? checkpoints.filter((checkpoint) => checkpoint.status === "completed" || checkpoint.status === "incorrect").map((checkpoint) => (
               <div key={checkpoint.id} className="p-3 rounded-xl border border-border">
                 <div className="flex items-center gap-2 mb-2">
                   <span className={`h-2 w-2 rounded-full ${checkpoint.status === "completed" ? "bg-success" : "bg-destructive"}`} />
@@ -96,7 +106,11 @@ const TranscriptTabs = ({ currentTime, checkpoints, onSeek }: TranscriptTabsProp
                 <p className="text-sm text-muted-foreground">{checkpoint.question}</p>
                 <p className="text-xs mt-1 text-success font-medium">Answer: {checkpoint.options[checkpoint.correctIndex]}</p>
               </div>
-            ))}
+            )) : (
+              <div className="rounded-xl border border-dashed border-border px-4 py-6 text-sm text-muted-foreground">
+                Answer a checkpoint during playback to build a quick review trail here.
+              </div>
+            )}
           </div>
         )}
       </div>
