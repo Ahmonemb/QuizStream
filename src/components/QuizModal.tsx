@@ -48,11 +48,11 @@ const QuizModal = ({ checkpoint, onClose }: QuizModalProps) => {
   };
 
   return (
-    <div className="absolute inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
+    <div className="absolute inset-0 z-50 flex items-center justify-center p-3 sm:p-6">
       <div className="absolute inset-0 bg-foreground/55 backdrop-blur-sm" onClick={handleContinue} />
 
       <div
-        className="relative z-10 w-full max-w-[520px] rounded-2xl bg-card p-6 sm:p-8 animate-modal-in"
+        className="relative z-10 w-full max-w-[520px] max-h-[min(78vh,680px)] overflow-y-auto rounded-2xl bg-card p-5 sm:p-6 animate-modal-in"
         style={{ boxShadow: "var(--shadow-xl)" }}
       >
         <button
