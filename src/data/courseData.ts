@@ -15,6 +15,54 @@ export interface NavItem {
   path: string;
 }
 
+export interface LearnerProfile {
+  name: string;
+  initials: string;
+  email: string;
+  plan: string;
+}
+
+export interface CourseSummary {
+  title: string;
+  moduleTitle: string;
+  moduleLabel: string;
+  summary: string;
+  instructor: string;
+  courseCode: string;
+  durationLabel: string;
+  tags: string[];
+}
+
+export interface TranscriptSegment {
+  time: number;
+  text: string;
+}
+
+export interface NoteEntry {
+  id: string;
+  time: number;
+  title: string;
+  content: string;
+}
+
+export const learnerProfile: LearnerProfile = {
+  name: "Alex Morgan",
+  initials: "AM",
+  email: "alex@quizstream.app",
+  plan: "Demo Workspace",
+};
+
+export const featuredCourse: CourseSummary = {
+  title: "Introduction to Cognitive Psychology",
+  moduleTitle: "Attention, Working Memory, and Recall",
+  moduleLabel: "Module 2",
+  summary: "Learn how attention, cognitive load, and retrieval practice shape the way people absorb video lessons.",
+  instructor: "Dr. Maya Patel",
+  courseCode: "PSYCH 210",
+  durationLabel: "9 min lesson",
+  tags: ["Cognitive Psychology", "Attention", "Memory", "Study Skills"],
+};
+
 export const navItems: NavItem[] = [
   { id: "home", title: "Home", icon: "Home", path: "/" },
   { id: "courses", title: "Courses", icon: "BookOpen", path: "/courses" },
@@ -25,69 +73,108 @@ export const navItems: NavItem[] = [
 export const checkpoints: Checkpoint[] = [
   {
     id: "q1",
-    time: 45,
-    label: "Variables & Types",
-    question: "Which keyword is used to declare a constant in JavaScript?",
-    options: ["var", "let", "const", "define"],
-    correctIndex: 2,
+    time: 52,
+    label: "Selective Attention",
+    question: "Which example best shows selective attention during a lecture?",
+    options: [
+      "Focusing on the instructor's explanation while ignoring background chatter",
+      "Trying to memorize every word on the slide at once",
+      "Taking notes without listening to the speaker",
+      "Pausing the video after every sentence",
+    ],
+    correctIndex: 0,
     status: "completed",
   },
   {
     id: "q2",
-    time: 120,
-    label: "Functions",
-    question: "What does the 'return' statement do in a function?",
+    time: 144,
+    label: "Working Memory",
+    question: "Why do instructors break complex topics into shorter chunks?",
     options: [
-      "Stops the function and outputs a value",
-      "Declares a new variable",
-      "Creates a loop",
-      "Imports a module",
+      "It reduces pressure on working memory",
+      "It removes the need for note-taking",
+      "It guarantees perfect recall",
+      "It replaces the need for quizzes",
     ],
     correctIndex: 0,
     status: "completed",
   },
   {
     id: "q3",
-    time: 210,
-    label: "Arrays",
-    question: "Which method adds an element to the end of an array?",
-    options: ["shift()", "unshift()", "pop()", "push()"],
-    correctIndex: 3,
+    time: 236,
+    label: "Cognitive Load",
+    question: "Which design choice most increases extraneous cognitive load?",
+    options: [
+      "Highlighting one key diagram at a time",
+      "Explaining a concept with a clear visual example",
+      "Showing dense text, animation, and narration all at once",
+      "Pausing briefly before a checkpoint quiz",
+    ],
+    correctIndex: 2,
     status: "active",
   },
   {
     id: "q4",
-    time: 300,
-    label: "Objects",
-    question: "How do you access a property 'name' on an object 'user'?",
-    options: ["user->name", "user.name", "user::name", "user[name]"],
+    time: 338,
+    label: "Encoding Strategy",
+    question: "Which learner behavior is an example of elaborative encoding?",
+    options: [
+      "Repeating a definition without context",
+      "Connecting a new idea to a real classroom example",
+      "Skipping notes to watch faster",
+      "Guessing before the instructor finishes",
+    ],
     correctIndex: 1,
     status: "upcoming",
   },
   {
     id: "q5",
-    time: 390,
-    label: "Loops",
-    question: "Which loop guarantees at least one execution?",
-    options: ["for", "while", "do...while", "for...in"],
-    correctIndex: 2,
+    time: 432,
+    label: "Retrieval Practice",
+    question: "Why does a quick checkpoint quiz improve retention?",
+    options: [
+      "It replaces the need to review later",
+      "It encourages active retrieval of the concept",
+      "It shortens the lecture automatically",
+      "It removes difficult material from memory",
+    ],
+    correctIndex: 1,
     status: "upcoming",
   },
 ];
 
-export const transcriptSegments = [
-  { time: 0, text: "Welcome to this JavaScript fundamentals course. Today we'll cover the building blocks of the language." },
-  { time: 15, text: "Let's start by understanding how JavaScript handles data through variables and different data types." },
-  { time: 30, text: "In JavaScript, we have three ways to declare variables: var, let, and const." },
-  { time: 45, text: "The 'const' keyword creates a constant reference — meaning the variable cannot be reassigned." },
-  { time: 60, text: "Now let's talk about data types. JavaScript has primitives like strings, numbers, and booleans." },
-  { time: 90, text: "Functions are reusable blocks of code. You can define them using function declarations or arrow functions." },
-  { time: 120, text: "The return statement exits the function and sends a value back to where the function was called." },
-  { time: 150, text: "Arrow functions provide a shorter syntax and don't bind their own 'this' context." },
-  { time: 180, text: "Arrays are ordered collections. You can store multiple values in a single variable." },
-  { time: 210, text: "Common array methods include push, pop, shift, unshift, map, filter, and reduce." },
-  { time: 240, text: "Objects store data as key-value pairs. They're fundamental to JavaScript programming." },
-  { time: 300, text: "You access object properties using dot notation or bracket notation." },
-  { time: 330, text: "Loops let you repeat code. JavaScript offers for, while, do-while, and for...of loops." },
-  { time: 390, text: "The do-while loop always executes at least once before checking the condition." },
+export const transcriptSegments: TranscriptSegment[] = [
+  { time: 0, text: "Welcome back. In this lesson we will look at how attention and memory shape the way people learn from video." },
+  { time: 24, text: "Selective attention helps learners focus on the speaker or the main visual, even when the screen contains distractions." },
+  { time: 52, text: "That is why a clean interface matters. When a lesson highlights one important cue, the brain can prioritize it faster." },
+  { time: 84, text: "Working memory is limited, so learners struggle when too many ideas arrive at the same time." },
+  { time: 144, text: "Chunking a lecture into short segments lowers overload and gives students space to connect one idea before meeting the next." },
+  { time: 196, text: "Cognitive load theory separates useful mental effort from extraneous load created by cluttered explanations." },
+  { time: 236, text: "If we stack narration, heavy text, and animation together, learners spend effort sorting the format instead of understanding the idea." },
+  { time: 284, text: "One way to improve encoding is to link a definition with a realistic example from class or daily life." },
+  { time: 338, text: "That extra connection builds a richer memory trace, making the concept easier to retrieve later." },
+  { time: 384, text: "Checkpoint questions are helpful because they require retrieval, not just recognition." },
+  { time: 432, text: "Even a short pause to answer a question strengthens retention and reveals whether the explanation was clear." },
+  { time: 498, text: "When combined, focused visuals, short segments, and retrieval practice create a lesson that feels easier to follow and easier to remember." },
+];
+
+export const noteEntries: NoteEntry[] = [
+  {
+    id: "note-1",
+    time: 52,
+    title: "Attention cue",
+    content: "Clean visuals help learners focus on the main explanation instead of competing details.",
+  },
+  {
+    id: "note-2",
+    time: 236,
+    title: "Extraneous load",
+    content: "Too much motion and text at once increases effort without improving understanding.",
+  },
+  {
+    id: "note-3",
+    time: 432,
+    title: "Why checkpoints work",
+    content: "Retrieval practice is stronger than passive review because the learner has to reconstruct the answer.",
+  },
 ];

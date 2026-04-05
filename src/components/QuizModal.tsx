@@ -35,37 +35,34 @@ const QuizModal = ({ checkpoint, onClose }: QuizModalProps) => {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
-      {/* Overlay */}
       <div className="absolute inset-0 bg-foreground/50 backdrop-blur-sm" onClick={handleContinue} />
 
-      {/* Modal */}
       <div className="relative w-full max-w-[520px] mx-4 bg-card rounded-2xl p-8 animate-modal-in" style={{ boxShadow: "var(--shadow-xl)" }}>
         <button onClick={handleContinue} className="absolute top-4 right-4 text-muted-foreground hover:text-foreground transition-colors">
           <X className="h-5 w-5" />
         </button>
 
-        {/* Badge */}
         <div className="inline-flex items-center gap-2 bg-tertiary/10 text-tertiary px-3 py-1 rounded-full text-xs font-semibold mb-4">
           <span className="h-2 w-2 rounded-full bg-tertiary" />
-          Quiz Checkpoint
+          Checkpoint Quiz
         </div>
 
         <h2 className="text-lg font-semibold text-foreground mb-6">{checkpoint.question}</h2>
 
         <div className="space-y-3 mb-6">
-          {checkpoint.options.map((option, i) => (
+          {checkpoint.options.map((option, index) => (
             <button
-              key={i}
+              key={option}
               disabled={submitted}
-              onClick={() => setSelected(i)}
-              className={getOptionClasses(i)}
+              onClick={() => setSelected(index)}
+              className={getOptionClasses(index)}
             >
               <div className="flex items-center justify-between">
                 <span>{option}</span>
-                {submitted && i === checkpoint.correctIndex && (
+                {submitted && index === checkpoint.correctIndex && (
                   <CheckCircle2 className="h-5 w-5 text-success shrink-0" />
                 )}
-                {submitted && selected === i && !isCorrect && i !== checkpoint.correctIndex && (
+                {submitted && selected === index && !isCorrect && index !== checkpoint.correctIndex && (
                   <XCircle className="h-5 w-5 text-destructive shrink-0" />
                 )}
               </div>
@@ -87,7 +84,7 @@ const QuizModal = ({ checkpoint, onClose }: QuizModalProps) => {
               isCorrect ? "bg-success/10 text-success" : "bg-destructive/10 text-destructive"
             }`}>
               {isCorrect ? <CheckCircle2 className="h-5 w-5" /> : <XCircle className="h-5 w-5" />}
-              {isCorrect ? "Correct! Great job." : "Not quite. Review this section again."}
+              {isCorrect ? "Correct. The concept is ready for review later." : "Not quite. Keep the idea in mind for the next explanation."}
             </div>
             <button
               onClick={handleContinue}
