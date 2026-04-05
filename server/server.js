@@ -17,6 +17,11 @@ dotenv.config();
 
 const client = new TwelveLabs({ apiKey: process.env.TWELVE_LABS_API_KEY });
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_GEMINI_API_KEY);
+const DEFAULT_GEMINI_MODEL =
+  process.env.GOOGLE_GEMINI_MODEL ?? "gemini-3-flash-preview";
+const DEFAULT_GEMINI_FALLBACK_MODELS = parseGeminiModelList(
+  process.env.GOOGLE_GEMINI_FALLBACK_MODELS,
+);
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -616,7 +621,6 @@ app.post("/api/analyze-video", async (req, res) => {
 // ============ GEMINI HELPER ============
 async function processWithGemini(twelveLabsSummary, userPrompt, questionCount) {
   try {
-    const model = genAI.getGenerativeModel({ model: "gemini-3-flash-preview" });
     const summaryText = toSummaryText(twelveLabsSummary);
     const timelineAnchors = extractTimelineAnchorsFromTimestampSummary(
       summaryText,
@@ -662,12 +666,40 @@ ${summaryText}
 
 Task instruction from user:
 ${userPrompt || `Create ${Number(questionCount) || 3} high-quality multiple-choice checkpoints.`}`;
+    const modelsToTry = resolveGeminiModels(
+      DEFAULT_GEMINI_MODEL,
+      DEFAULT_GEMINI_FALLBACK_MODELS,
+      "gemini-2.5-flash",
+    );
 
-    const result = await model.generateContent(prompt);
-    const response = await result.response;
+    for (const [index, candidateModel] of modelsToTry.entries()) {
+      try {
+        const model = genAI.getGenerativeModel({ model: candidateModel });
+        const result = await model.generateContent(prompt);
+        const response = await result.response;
+        const rawText = response.text();
 
-    const rawText = response.text();
-    return parseGeminiCheckpoints(rawText, timelineAnchors);
+        return parseGeminiCheckpoints(rawText, timelineAnchors);
+      } catch (error) {
+        if (error instanceof InvalidGeminiOutputError) {
+          throw error;
+        }
+
+        if (
+          index < modelsToTry.length - 1 &&
+          shouldFallbackToNextGeminiModel(error)
+        ) {
+          console.warn(
+            `Gemini model ${candidateModel} is unavailable, retrying with ${modelsToTry[index + 1]}.`,
+          );
+          continue;
+        }
+
+        throw error;
+      }
+    }
+
+    throw new Error("All configured Gemini models were unavailable.");
   } catch (error) {
     if (error instanceof InvalidGeminiOutputError) {
       throw error;
@@ -676,6 +708,42 @@ ${userPrompt || `Create ${Number(questionCount) || 3} high-quality multiple-choi
     console.error("Gemini API Error:", error.message || error);
     throw new Error("Failed to process data with Gemini.");
   }
+}
+
+function parseGeminiModelList(value) {
+  if (typeof value !== "string") {
+    return [];
+  }
+
+  return value
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+}
+
+function resolveGeminiModels(primaryModel, fallbackModels, stableFallbackModel) {
+  return [...new Set([
+    primaryModel,
+    ...fallbackModels,
+    primaryModel !== stableFallbackModel ? stableFallbackModel : null,
+  ])].filter(Boolean);
+}
+
+function shouldFallbackToNextGeminiModel(error) {
+  const statusCode = Number(error?.status ?? error?.statusCode);
+  if ([429, 500, 502, 503, 504].includes(statusCode)) {
+    return true;
+  }
+
+  const message = String(error?.message ?? "").toLowerCase();
+
+  return [
+    "high demand",
+    "service unavailable",
+    "try again later",
+    "temporarily unavailable",
+    "overloaded",
+  ].some((fragment) => message.includes(fragment));
 }
 
 // ============ GET QUIZ DATA ============

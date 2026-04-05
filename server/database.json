@@ -167,10 +167,132 @@
           "status": "upcoming"
         }
       ]
+    },
+    "video_1775402304783": {
+      "videoId": "video_1775402304783",
+      "taskId": "69d27d41a15205fa7bf03e47",
+      "fileName": "YTDown.com_YouTube_AVL-trees-in-5-minutes-Deletions_Media_PBkXmhiCP1M_001_1080p.mp4",
+      "uploadedAt": "2026-04-05T15:18:26.705Z",
+      "localPath": "uploads/2d60e6c2274c3a0b82d89d6c098117ff",
+      "quizzes": [
+        {
+          "id": "checkpoint-1",
+          "time": 20,
+          "label": "Balance Factor Definition",
+          "question": "What is the specific constraint for a balance factor to be considered valid in an AVL tree?",
+          "options": [
+            "The value must be exactly 0",
+            "The absolute value must not exceed 1",
+            "The value must be greater than 1",
+            "The value must be an even number"
+          ],
+          "correctIndex": 1,
+          "status": "upcoming"
+        },
+        {
+          "id": "checkpoint-2",
+          "time": 55,
+          "label": "Deleting Nodes with Two Children",
+          "question": "According to the video, which node is used as a replacement when deleting a node with two children?",
+          "options": [
+            "The in-order successor",
+            "The root node",
+            "The left-most leaf of the entire tree",
+            "The node's parent"
+          ],
+          "correctIndex": 0,
+          "status": "upcoming"
+        },
+        {
+          "id": "checkpoint-3",
+          "time": 115,
+          "label": "Imbalance Detection",
+          "question": "In the demonstration, what violation occurs after node 120 is replaced by 125?",
+          "options": [
+            "The tree becomes a linked list",
+            "Node 125 gains a balance factor of 2",
+            "The tree height becomes zero",
+            "All nodes lose their balance factors"
+          ],
+          "correctIndex": 1,
+          "status": "upcoming"
+        },
+        {
+          "id": "checkpoint-4",
+          "time": 135,
+          "label": "Rotation Decision Logic",
+          "question": "What criteria are used to determine whether a single or double rotation is required for rebalancing?",
+          "options": [
+            "The total number of nodes in the tree",
+            "The balance factor of the node and its child",
+            "The value of the node being deleted",
+            "Whether the node is the root"
+          ],
+          "correctIndex": 1,
+          "status": "upcoming"
+        },
+        {
+          "id": "checkpoint-5",
+          "time": 160,
+          "label": "Applying Rotations",
+          "question": "Which specific rotation is demonstrated to correct the imbalance at node 125?",
+          "options": [
+            "Left rotation",
+            "Right rotation",
+            "Double left-right rotation",
+            "No rotation is needed"
+          ],
+          "correctIndex": 1,
+          "status": "upcoming"
+        },
+        {
+          "id": "checkpoint-6",
+          "time": 200,
+          "label": "Leaf Node Deletion",
+          "question": "When a leaf node like 10 is removed, what is the immediate next step in the AVL algorithm?",
+          "options": [
+            "Delete the entire tree",
+            "Update the heights of ancestor nodes and check for violations",
+            "Insert a new node at the root",
+            "Change the balance factor of all nodes to 0"
+          ],
+          "correctIndex": 1,
+          "status": "upcoming"
+        },
+        {
+          "id": "checkpoint-7",
+          "time": 280,
+          "label": "The Deletion Algorithm",
+          "question": "After the target node is removed and replaced, what does the algorithm do while moving up the tree?",
+          "options": [
+            "It updates heights and checks for balance factor violations",
+            "It stops immediately at the parent node",
+            "It re-inserts the deleted node",
+            "It converts the tree into a Binary Search Tree without balance"
+          ],
+          "correctIndex": 0,
+          "status": "upcoming"
+        },
+        {
+          "id": "checkpoint-8",
+          "time": 300,
+          "label": "Time Complexity",
+          "question": "What is the time complexity of a deletion operation in an AVL tree, and why?",
+          "options": [
+            "O(n) because you may visit every node",
+            "O(1) because deletions are instantaneous",
+            "O(log n) because the height of the tree is bounded",
+            "O(n log n) because of the sorting requirement"
+          ],
+          "correctIndex": 2,
+          "status": "upcoming"
+        }
+      ]
     }
   },
   "fileHashes": {
     "a26957df96df7f8fffb767e8b89536c8e234bb11dfebff5b91a2c1a9f4f486a3": "video_1775383122759",
-    "6fec92ed4f855822cd140b1ba25625e426ee2ef8aed08b264e0501d0ba20e79a": "video_1775387875466"
+    "6fec92ed4f855822cd140b1ba25625e426ee2ef8aed08b264e0501d0ba20e79a": "video_1775387875466",
+    "d6bf93aa39a2ec0a4b542f5e879b58510dc8e8e2724095b287146573b49f73f8": "video_1775402304783"
   }
 }
