@@ -260,11 +260,15 @@ const VideoPlayer = ({
   return (
     <div
       ref={containerRef}
-      className="relative w-full overflow-hidden rounded-xl bg-foreground/95 card-shadow"
+      className={`relative w-full rounded-xl bg-foreground/95 card-shadow ${
+        hasOverlay && !isFullscreen ? "overflow-visible" : "overflow-hidden"
+      } ${isFullscreen ? "flex h-full flex-col justify-center bg-black" : ""}`}
       onMouseMove={revealFullscreenControls}
     >
       <div
-        className="group relative aspect-video cursor-pointer overflow-hidden bg-black"
+        className={`group relative cursor-pointer overflow-hidden bg-black ${
+          isFullscreen ? "flex-1" : "aspect-video"
+        }`}
         onClick={handlePlayPause}
       >
         {videoUrl ? (
@@ -322,12 +326,6 @@ const VideoPlayer = ({
         {videoError && (
           <div className="absolute inset-x-4 bottom-4 rounded-lg border border-destructive/40 bg-background/95 px-4 py-3 text-sm text-destructive shadow-lg">
             {videoError}
-          </div>
-        )}
-
-        {overlay && (
-          <div className="absolute inset-0 z-40 flex items-center justify-center">
-            {overlay}
           </div>
         )}
       </div>
@@ -433,6 +431,12 @@ const VideoPlayer = ({
           </div>
         </div>
       </div>
+
+      {overlay && (
+        <div className="absolute inset-0 z-40 flex items-center justify-center">
+          {overlay}
+        </div>
+      )}
     </div>
   );
 };
