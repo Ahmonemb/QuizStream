@@ -28,3 +28,5 @@ backend/data/videos.json
 .env*
 .env.local
 .env
+
+server/.env
