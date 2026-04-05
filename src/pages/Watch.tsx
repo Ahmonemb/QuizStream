@@ -1,7 +1,7 @@
 import { useLocation, useParams } from "react-router-dom";
 import { useState, useEffect } from "react";
 import VideoPlayer from "@/components/VideoPlayer";
-import { Checkpoint } from "@/data/courseData";
+import { Checkpoint } from "@/lib/app-types"; // Updated to match your new app structure!
 
 // Define what the AI quiz object looks like
 export interface Quiz {
@@ -26,7 +26,12 @@ const Watch = () => {
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
   const [checkpoints, setCheckpoints] = useState<Checkpoint[]>([]);
   const [fileName, setFileName] = useState("Video Lesson");
-  const [currentTime, setCurrentTime] = useState(0); // Added to track time
+  
+  // -- NEW: Added state for the advanced VideoPlayer --
+  const [currentTime, setCurrentTime] = useState(0); 
+  const [duration, setDuration] = useState(0);
+  const [isPlaying, setIsPlaying] = useState(false);
+  
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -84,10 +89,17 @@ const Watch = () => {
         videoId={videoId}
         lessonTitle={fileName} 
         lessonSubtitle="AI Generated Quiz" 
+        
+        // NEW: Providing the missing props to satisfy TypeScript!
+        videoUrl={null} // Null forces it to use the videoId backend route
+        currentTime={currentTime}
+        duration={duration}
+        isPlaying={isPlaying}
         checkpoints={checkpoints} 
-        // 1. Listen for time updates from the player
+        
         onTimeUpdate={(time) => setCurrentTime(time)}
-        // 2. Keep the Watch.tsx checkpoints perfectly in sync when a user answers a question!
+        onDurationChange={(dur) => setDuration(dur)}
+        onPlayingChange={(playing) => setIsPlaying(playing)}
         onCheckpointStatusChange={(updatedCheckpoints) => setCheckpoints(updatedCheckpoints)}
       />
     </div>

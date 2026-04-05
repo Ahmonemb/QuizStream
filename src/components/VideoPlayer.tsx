@@ -1,14 +1,20 @@
-import { useState, useRef, useEffect, type MouseEvent } from "react";
-import { Play, Pause, Volume2, VolumeX, Maximize, Settings, CheckCircle2, XCircle } from "lucide-react";
-import { Checkpoint } from "@/data/courseData"; // Importing your exact interface!
+import { useEffect, useRef, useState, type ChangeEvent, type MouseEvent } from "react";
+import { Maximize, Pause, Play, Volume2, VolumeX, CheckCircle2, XCircle } from "lucide-react";
+import { Checkpoint } from "@/lib/app-types";
 
 interface VideoPlayerProps {
   videoId: string;
   lessonTitle: string;
   lessonSubtitle: string;
+  videoUrl: string | null;
+  currentTime: number;
+  duration: number;
+  isPlaying: boolean;
   checkpoints: Checkpoint[];
-  onTimeUpdate?: (time: number) => void;                               // NEW
-  onCheckpointStatusChange?: (updatedCheckpoints: Checkpoint[]) => void; // NEW
+  onTimeUpdate: (time: number) => void;
+  onDurationChange: (duration: number) => void;
+  onPlayingChange: (isPlaying: boolean) => void;
+  onCheckpointStatusChange?: (updatedCheckpoints: Checkpoint[]) => void;
 }
 
 const FULLSCREEN_CONTROLS_TIMEOUT_MS = 2200;
@@ -17,127 +23,167 @@ const VideoPlayer = ({
   videoId,
   lessonTitle,
   lessonSubtitle,
+  videoUrl,
+  currentTime,
+  duration,
+  isPlaying,
   checkpoints: initialCheckpoints,
-  onTimeUpdate,              // <-- ADD THIS HERE
-  onCheckpointStatusChange
+  onTimeUpdate,
+  onDurationChange,
+  onPlayingChange,
+  onCheckpointStatusChange,
 }: VideoPlayerProps) => {
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const timelineRef = useRef<HTMLDivElement>(null);
-  const wrapperRef = useRef<HTMLDivElement>(null);
-
-  // -- Video State --
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [currentTime, setCurrentTime] = useState(0);
-  const [duration, setDuration] = useState(0);
   const [isMuted, setIsMuted] = useState(false);
-  
-  // -- UI State --
+  const [volume, setVolume] = useState(1);
+  const [lastVolume, setLastVolume] = useState(1);
   const [hoveredCheckpoint, setHoveredCheckpoint] = useState<Checkpoint | null>(null);
   const [tooltipPosition, setTooltipPosition] = useState(0);
-
-  // -- Quiz Interactive State --
-  // We keep a local copy of checkpoints so we can update their status (upcoming -> completed)
+  const [videoError, setVideoError] = useState<string | null>(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [showFullscreenControls, setShowFullscreenControls] = useState(true);
+  
+  // -- AI Internal State --
   const [localCheckpoints, setLocalCheckpoints] = useState<Checkpoint[]>(initialCheckpoints);
   const [activeQuiz, setActiveQuiz] = useState<Checkpoint | null>(null);
   const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
   const [hasSubmitted, setHasSubmitted] = useState(false);
 
-  // Sync props to local state when AI finishes loading
+  const containerRef = useRef<HTMLDivElement>(null);
+  const timelineRef = useRef<HTMLDivElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const hideControlsTimeoutRef = useRef<number | null>(null);
+
+  const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
+  const hasOverlay = Boolean(activeQuiz);
+  const shouldShowControls = !isFullscreen || showFullscreenControls || !isPlaying || hasOverlay;
+
   useEffect(() => {
     setLocalCheckpoints(initialCheckpoints);
   }, [initialCheckpoints]);
 
-  // ==========================================
-  // VIDEO CONTROLS
-  // ==========================================
-  const togglePlay = () => {
-    if (!videoRef.current || activeQuiz) return; // Don't allow play if quiz is open
-    if (isPlaying) {
-      videoRef.current.pause();
-    } else {
-      videoRef.current.play();
+  useEffect(() => {
+    const video = videoRef.current;
+    if (video) { video.volume = volume; video.muted = isMuted; }
+  }, [isMuted, volume]);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (video && videoUrl && Math.abs(video.currentTime - currentTime) > 0.75) {
+      video.currentTime = currentTime;
     }
-    setIsPlaying(!isPlaying);
+  }, [currentTime, videoUrl]);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video || !videoUrl) return;
+    
+    if (isPlaying && !activeQuiz) {
+      void video.play().catch(() => {
+        setVideoError("Playback could not start automatically.");
+        onPlayingChange(false);
+      });
+    } else if (!video.paused) {
+      video.pause();
+    }
+  }, [isPlaying, activeQuiz, onPlayingChange, videoUrl]);
+
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      const isPlayerFullscreen = Boolean(containerRef.current && document.fullscreenElement === containerRef.current);
+      setIsFullscreen(isPlayerFullscreen);
+      setShowFullscreenControls(true);
+    };
+    document.addEventListener("fullscreenchange", handleFullscreenChange);
+    return () => document.removeEventListener("fullscreenchange", handleFullscreenChange);
+  }, []);
+
+  useEffect(() => {
+    if (hideControlsTimeoutRef.current) window.clearTimeout(hideControlsTimeoutRef.current);
+    if (!isFullscreen || !isPlaying || hasOverlay) {
+      setShowFullscreenControls(true);
+      return;
+    }
+    hideControlsTimeoutRef.current = window.setTimeout(() => setShowFullscreenControls(false), FULLSCREEN_CONTROLS_TIMEOUT_MS);
+    return () => { if (hideControlsTimeoutRef.current) window.clearTimeout(hideControlsTimeoutRef.current); };
+  }, [hasOverlay, isFullscreen, isPlaying]);
+
+  const revealFullscreenControls = () => {
+    if (isFullscreen) setShowFullscreenControls(true);
   };
 
-  const handleTimeUpdate = () => {
-    if (!videoRef.current) return;
-    const current = videoRef.current.currentTime;
-    setCurrentTime(current);
+  const formatTime = (seconds: number) => {
+    if (!Number.isFinite(seconds) || seconds <= 0) return "0:00";
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = Math.floor(seconds % 60);
+    return `${minutes}:${remainingSeconds.toString().padStart(2, "0")}`;
+  };
 
-    if (onTimeUpdate) {
-      onTimeUpdate(current); 
-    }
-
-    // AI QUIZ TRIGGER LOGIC
-    // Find if there is an 'upcoming' checkpoint right at this second
-    const triggeredQuiz = localCheckpoints.find(
-      (cp) => cp.status === "upcoming" && Math.abs(current - cp.time) < 0.5
-    );
-
-    if (triggeredQuiz && !activeQuiz) {
-      videoRef.current.pause();
-      setIsPlaying(false);
-      setActiveQuiz(triggeredQuiz); // Open the modal!
-    }
+  const seekToTime = (nextTime: number) => {
+    if (activeQuiz) return;
+    const boundedTime = Math.max(0, Math.min(nextTime, duration || nextTime));
+    if (videoRef.current && Number.isFinite(boundedTime)) videoRef.current.currentTime = boundedTime;
+    onTimeUpdate(boundedTime);
   };
 
   const handleTimelineClick = (event: MouseEvent<HTMLDivElement>) => {
-    if (!timelineRef.current || !videoRef.current || activeQuiz) return;
+    if (!timelineRef.current || duration <= 0 || activeQuiz) return;
     const timelineBounds = timelineRef.current.getBoundingClientRect();
     const progressPercent = (event.clientX - timelineBounds.left) / timelineBounds.width;
-    const newTime = progressPercent * duration;
-    
-    videoRef.current.currentTime = newTime;
-    setCurrentTime(newTime);
+    seekToTime(progressPercent * duration);
   };
 
-  // ==========================================
-  // QUIZ HANDLING LOGIC
-  // ==========================================
+  // AI Time Event Hook
+  const handleTimeUpdateInternal = (event: React.SyntheticEvent<HTMLVideoElement>) => {
+    const current = event.currentTarget.currentTime;
+    onTimeUpdate(current);
+
+    // Trigger quiz logic
+    const triggeredQuiz = localCheckpoints.find((cp) => cp.status === "upcoming" && Math.abs(current - cp.time) < 0.5);
+    if (triggeredQuiz && !activeQuiz) {
+      onPlayingChange(false);
+      setActiveQuiz(triggeredQuiz);
+    }
+  };
+
   const submitQuiz = () => {
     if (selectedAnswer === null || !activeQuiz) return;
-    
     setHasSubmitted(true);
     const isCorrect = selectedAnswer === activeQuiz.correctIndex;
     
-    // 1. Update the local checkpoints
-    const updatedCheckpoints = localCheckpoints.map(cp => 
+    // FIX: Add `: Checkpoint` right here to strictly type the returned object
+    const updatedCheckpoints = localCheckpoints.map((cp): Checkpoint => 
       cp.id === activeQuiz.id 
-        ? { ...cp, status: isCorrect ? "completed" : "incorrect" as "completed" | "incorrect" }
+        ? { ...cp, status: isCorrect ? "completed" : "incorrect" } 
         : cp
     );
-    setLocalCheckpoints(updatedCheckpoints);
 
-    // 2. PING THE PARENT: "Hey Courses.tsx, here are the new quiz scores!"
-    if (onCheckpointStatusChange) {
-      onCheckpointStatusChange(updatedCheckpoints);
-    }
+    setLocalCheckpoints(updatedCheckpoints);
+    if (onCheckpointStatusChange) onCheckpointStatusChange(updatedCheckpoints);
   };
 
   const continueVideo = () => {
     setActiveQuiz(null);
     setSelectedAnswer(null);
     setHasSubmitted(false);
-    
-    // Slight delay to ensure state clears before playing
-    setTimeout(() => {
-      if (videoRef.current) {
-        videoRef.current.play();
-        setIsPlaying(true);
-      }
-    }, 100);
+    setTimeout(() => { if (videoRef.current) onPlayingChange(true); }, 100);
   };
 
-  // ==========================================
-  // HELPERS
-  // ==========================================
-  const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
-  const formatTime = (seconds: number) => {
-    if (isNaN(seconds)) return "0:00";
-    const minutes = Math.floor(seconds / 60);
-    const remainingSeconds = Math.floor(seconds % 60);
-    return `${minutes}:${remainingSeconds.toString().padStart(2, "0")}`;
+  const handlePlayPause = () => {
+    if (!videoUrl || !videoRef.current || activeQuiz) return;
+    if (videoRef.current.paused) {
+      setVideoError(null);
+      void videoRef.current.play().catch(() => setVideoError("Playback could not start."));
+      onPlayingChange(true);
+    } else {
+      videoRef.current.pause();
+      onPlayingChange(false);
+    }
+  };
+
+  const handleFullscreen = async () => {
+    if (!containerRef.current) return;
+    if (document.fullscreenElement) await document.exitFullscreen();
+    else await containerRef.current.requestFullscreen?.();
   };
 
   const getCheckpointColor = (status: Checkpoint["status"]) => {
@@ -145,77 +191,64 @@ const VideoPlayer = ({
       case "completed": return "bg-success";
       case "active": return "bg-primary";
       case "incorrect": return "bg-destructive";
-      default: return "bg-warning";
+      default: return "bg-tertiary";
     }
   };
 
   return (
-    <div ref={wrapperRef} className="relative w-full rounded-xl overflow-hidden bg-foreground/95 card-shadow group">
-      
-      <div className="relative aspect-video bg-black flex items-center justify-center">
-        
-        <video
-          ref={videoRef}
-          src={`http://localhost:5001/api/video/${videoId}`}
-          className="absolute inset-0 w-full h-full z-0 cursor-pointer"
-          onClick={togglePlay}
-          onTimeUpdate={handleTimeUpdate}
-          onLoadedMetadata={(e) => setDuration(e.currentTarget.duration)}
-          onPlay={() => setIsPlaying(true)}
-          onPause={() => setIsPlaying(false)}
-        />
-
-        {/* INITIAL PLAY OVERLAY */}
-        {!isPlaying && !activeQuiz && (
-          <div className="absolute inset-0 pointer-events-none z-10 flex flex-col items-center justify-center">
-            <div className="absolute inset-0 bg-gradient-to-br from-primary/40 to-secondary/40" />
-            <div className="text-center z-20 mb-6">
-              <h3 className="text-white text-2xl font-bold mb-2 drop-shadow-md">{lessonTitle}</h3>
-              <p className="text-white/90 text-sm font-medium drop-shadow-md">{lessonSubtitle}</p>
-            </div>
-            <div className="h-20 w-20 rounded-full bg-primary flex items-center justify-center shadow-lg transition-transform group-hover:scale-110 pointer-events-auto cursor-pointer" onClick={togglePlay}>
-              <Play className="h-10 w-10 text-primary-foreground ml-2" />
-            </div>
-          </div>
+    <div ref={containerRef} className="relative w-full overflow-hidden rounded-xl bg-foreground/95 card-shadow" onMouseMove={revealFullscreenControls}>
+      <div className="group relative aspect-video cursor-pointer overflow-hidden bg-black" onClick={handlePlayPause}>
+        {videoUrl || videoId ? (
+          <video
+            ref={videoRef}
+            src={videoUrl || `http://localhost:5001/api/video/${videoId}`}
+            className="h-full w-full bg-black object-contain"
+            playsInline
+            preload="metadata"
+            onLoadedMetadata={(e) => {
+              setVideoError(null);
+              onDurationChange(Number.isFinite(e.currentTarget.duration) ? e.currentTarget.duration : 0);
+            }}
+            onTimeUpdate={handleTimeUpdateInternal}
+            onPlay={() => onPlayingChange(true)}
+            onPause={() => onPlayingChange(false)}
+            onEnded={() => onPlayingChange(false)}
+            onError={() => {
+              setVideoError("This video could not be played.");
+              onPlayingChange(false);
+            }}
+          />
+        ) : (
+          <div className="absolute inset-0 bg-gradient-to-br from-primary/20 to-secondary/20" />
         )}
 
-        {/* ========================================== */}
-        {/* THE QUIZ MODAL OVERLAY */}
-        {/* ========================================== */}
+        <div className={`pointer-events-none absolute inset-x-0 top-0 bg-gradient-to-b from-black/60 to-transparent px-5 py-4 transition-opacity duration-300 ${shouldShowControls ? "opacity-100" : "opacity-0"}`}>
+          <h3 className="text-xl font-semibold text-primary-foreground">{lessonTitle}</h3>
+          <p className="text-sm text-primary-foreground/70">{lessonSubtitle}</p>
+        </div>
+
+        {/* AI QUIZ MODAL - Placed internally for perfect fullscreen support */}
         {activeQuiz && (
-          <div className="absolute inset-0 z-40 bg-black/80 backdrop-blur-sm flex items-center justify-center p-6 animate-fade-in">
-            <div className="bg-card w-full max-w-lg rounded-2xl p-6 shadow-2xl border border-border flex flex-col max-h-full overflow-y-auto">
-              
+          <div className="absolute inset-0 z-40 bg-black/80 backdrop-blur-sm flex items-center justify-center p-6 animate-fade-in pointer-events-auto">
+            <div className="bg-card w-full max-w-lg rounded-2xl p-6 shadow-2xl border border-border flex flex-col max-h-full overflow-y-auto" onClick={(e) => e.stopPropagation()}>
               <div className="flex justify-between items-center mb-4">
                 <span className="text-sm font-bold text-primary uppercase tracking-wider">{activeQuiz.label}</span>
                 <span className="text-xs text-muted-foreground font-mono">{formatTime(activeQuiz.time)}</span>
               </div>
-              
-              <h3 className="text-xl font-semibold text-foreground mb-6 leading-tight">
-                {activeQuiz.question}
-              </h3>
-
+              <h3 className="text-xl font-semibold text-foreground mb-6 leading-tight">{activeQuiz.question}</h3>
               <div className="space-y-3 mb-6">
-                {activeQuiz.options.map((opt, idx) => {
+                {activeQuiz.options?.map((opt, idx) => {
                   const isSelected = selectedAnswer === idx;
                   const isCorrectAnswer = idx === activeQuiz.correctIndex;
-                  
-                  // Determine button styling based on submission state
                   let btnStyle = "border-border hover:border-primary/50 hover:bg-muted";
                   if (isSelected && !hasSubmitted) btnStyle = "border-primary bg-primary/10 text-primary";
                   if (hasSubmitted) {
                     if (isCorrectAnswer) btnStyle = "border-success bg-success/10 text-success";
-                    else if (isSelected && !isCorrectAnswer) btnStyle = "border-destructive bg-destructive/10 text-destructive";
+                    else if (isSelected) btnStyle = "border-destructive bg-destructive/10 text-destructive";
                     else btnStyle = "border-border opacity-50";
                   }
-
                   return (
-                    <button
-                      key={idx}
-                      disabled={hasSubmitted}
-                      onClick={() => setSelectedAnswer(idx)}
-                      className={`w-full text-left p-4 rounded-xl border-2 transition-all flex items-center justify-between ${btnStyle}`}
-                    >
+                    <button key={idx} disabled={hasSubmitted} onClick={() => setSelectedAnswer(idx)} className={`w-full text-left p-4 rounded-xl border-2 transition-all flex items-center justify-between ${btnStyle}`}>
                       <span className="font-medium text-sm">{opt}</span>
                       {hasSubmitted && isCorrectAnswer && <CheckCircle2 className="h-5 w-5 text-success" />}
                       {hasSubmitted && isSelected && !isCorrectAnswer && <XCircle className="h-5 w-5 text-destructive" />}
@@ -223,23 +256,23 @@ const VideoPlayer = ({
                   );
                 })}
               </div>
-
               {!hasSubmitted ? (
-                <button
-                  disabled={selectedAnswer === null}
-                  onClick={submitQuiz}
-                  className="w-full py-3 rounded-xl bg-primary text-primary-foreground font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed hover:brightness-110"
-                >
+                <button disabled={selectedAnswer === null} onClick={submitQuiz} className="w-full py-3 rounded-xl bg-primary text-primary-foreground font-semibold transition-all disabled:opacity-50 hover:brightness-110">
                   Check Answer
                 </button>
               ) : (
-                <button
-                  onClick={continueVideo}
-                  className="w-full py-3 rounded-xl bg-foreground text-background font-semibold transition-all hover:brightness-110"
-                >
+                <button onClick={continueVideo} className="w-full py-3 rounded-xl bg-foreground text-background font-semibold transition-all hover:brightness-110">
                   Continue Video
                 </button>
               )}
+            </div>
+          </div>
+        )}
+
+        {(videoUrl || videoId) && !isPlaying && !hasOverlay && (
+          <div className="absolute inset-0 flex items-center justify-center bg-black/20 pointer-events-none">
+            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary/90 transition-transform group-hover:scale-110">
+              <Play className="ml-1 h-7 w-7 text-primary-foreground" />
             </div>
           </div>
         )}
@@ -249,36 +282,29 @@ const VideoPlayer = ({
             {videoError}
           </div>
         )}
-
-        {overlay && (
-          <div className="absolute inset-0 z-40 flex items-center justify-center">
-            {overlay}
-          </div>
-        )}
       </div>
 
-      {/* TIMELINE & CONTROLS (Untouched) */}
-      <div className="px-4 pb-3 pt-2 bg-card relative z-30">
-        <div ref={timelineRef} className="relative h-2 bg-muted rounded-full cursor-pointer mb-3 group" onClick={handleTimelineClick}>
-          <div className="absolute inset-y-0 left-0 bg-primary rounded-full transition-all" style={{ width: `${progress}%` }} />
-
+      <div className={`bg-card px-4 pb-4 pt-3 transition-all duration-300 ${shouldShowControls ? "translate-y-0 opacity-100" : "pointer-events-none translate-y-full opacity-0"}`}>
+        <div ref={timelineRef} className={`relative mb-3 h-2 rounded-full bg-muted ${duration > 0 ? "cursor-pointer" : "cursor-not-allowed opacity-60"}`} onClick={handleTimelineClick}>
+          <div className="absolute inset-y-0 left-0 rounded-full bg-primary transition-all" style={{ width: `${progress}%` }} />
           {localCheckpoints.map((checkpoint) => {
-            const position = (checkpoint.time / duration) * 100;
+            const position = duration > 0 ? (checkpoint.time / duration) * 100 : 0;
             return (
-              <div
+              <button
                 key={checkpoint.id}
-                className="absolute top-1/2 -translate-y-1/2 z-10"
+                type="button"
+                className="absolute top-1/2 z-10 -translate-y-1/2"
                 style={{ left: `${position}%` }}
+                onClick={(e) => { e.stopPropagation(); seekToTime(checkpoint.time); }}
                 onMouseEnter={() => { setHoveredCheckpoint(checkpoint); setTooltipPosition(position); }}
                 onMouseLeave={() => setHoveredCheckpoint(null)}
               >
-                <div className={`h-3 w-3 rounded-full ${getCheckpointColor(checkpoint.status)} border-2 border-card -translate-x-1/2 transition-transform hover:scale-150 cursor-pointer`} />
-              </div>
+                <span className={`block h-3 w-3 -translate-x-1/2 rounded-full border-2 border-card transition-transform hover:scale-150 ${getCheckpointColor(checkpoint.status)}`} />
+              </button>
             );
           })}
-
           {hoveredCheckpoint && (
-            <div className="absolute -top-12 -translate-x-1/2 bg-foreground text-background text-xs px-3 py-1.5 rounded-lg whitespace-nowrap z-20" style={{ left: `${tooltipPosition}%` }}>
+            <div className="absolute -top-12 z-20 -translate-x-1/2 whitespace-nowrap rounded-lg bg-foreground px-3 py-1.5 text-xs text-background animate-fade-in" style={{ left: `${tooltipPosition}%` }}>
               <span className="font-medium">{hoveredCheckpoint.label}</span>
               <span className="ml-2 opacity-70">{formatTime(hoveredCheckpoint.time)}</span>
               <div className="absolute bottom-0 left-1/2 h-2 w-2 -translate-x-1/2 translate-y-1/2 rotate-45 bg-foreground" />
@@ -286,36 +312,24 @@ const VideoPlayer = ({
           )}
         </div>
 
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <button onClick={togglePlay} className="text-foreground hover:text-primary transition-colors">
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div className="flex flex-wrap items-center gap-3">
+            <button type="button" onClick={handlePlayPause} disabled={!videoUrl && !videoId} className="text-foreground transition-colors hover:text-primary disabled:opacity-40">
               {isPlaying ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5" />}
             </button>
-            <button onClick={() => { if(videoRef.current) { videoRef.current.muted = !isMuted; setIsMuted(!isMuted); } }} className="text-foreground hover:text-primary transition-colors">
-              {isMuted ? <VolumeX className="h-5 w-5" /> : <Volume2 className="h-5 w-5" />}
+            <button type="button" onClick={() => { if(isMuted||volume===0){setIsMuted(false);setVolume(lastVolume||1);}else{setIsMuted(true);}}} disabled={!videoUrl && !videoId} className="text-foreground transition-colors hover:text-primary disabled:opacity-40">
+              {isMuted || volume === 0 ? <VolumeX className="h-5 w-5" /> : <Volume2 className="h-5 w-5" />}
             </button>
-
             <input
-              type="range"
-              min="0"
-              max="100"
-              value={isMuted ? 0 : Math.round(volume * 100)}
-              onChange={handleVolumeChange}
-              disabled={!videoUrl}
-              className="h-2 w-28 cursor-pointer accent-primary disabled:cursor-not-allowed disabled:opacity-40"
-              aria-label="Volume"
+              type="range" min="0" max="100" value={isMuted ? 0 : Math.round(volume * 100)}
+              onChange={(e) => { const v = Number(e.target.value)/100; setVolume(v); if(v>0){setLastVolume(v);setIsMuted(false);}else{setIsMuted(true);} }}
+              disabled={!videoUrl && !videoId} className="h-2 w-28 cursor-pointer accent-primary disabled:opacity-40" aria-label="Volume"
             />
-
-            <span className="font-mono text-sm text-muted-foreground">
-              {formatTime(currentTime)} / {formatTime(duration)}
-            </span>
+            <span className="font-mono text-sm text-muted-foreground">{formatTime(currentTime)} / {formatTime(duration)}</span>
           </div>
 
           <div className="flex items-center gap-3">
-            <button className="text-foreground hover:text-primary transition-colors">
-              <Settings className="h-5 w-5" />
-            </button>
-            <button className="text-foreground hover:text-primary transition-colors" onClick={() => document.querySelector('.aspect-video')?.requestFullscreen()}>
+            <button type="button" onClick={handleFullscreen} disabled={!videoUrl && !videoId} className="text-foreground transition-colors hover:text-primary disabled:opacity-40">
               <Maximize className="h-5 w-5" />
             </button>
           </div>

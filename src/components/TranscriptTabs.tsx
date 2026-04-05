@@ -4,14 +4,21 @@ import { Checkpoint, NoteEntry, TranscriptSegment } from "@/lib/app-types";
 interface TranscriptTabsProps {
   currentTime: number;
   checkpoints: Checkpoint[];
-  transcriptSegments: TranscriptSegment[];
-  noteEntries: NoteEntry[];
+  transcriptSegments?: TranscriptSegment[]; // Added ? to make optional
+  noteEntries?: NoteEntry[];              // Added ? to make optional
   onSeek: (time: number) => void;
 }
 
 const tabs = ["Transcript", "Notes", "Quiz Review"] as const;
 
-const TranscriptTabs = ({ currentTime, checkpoints, transcriptSegments, noteEntries, onSeek }: TranscriptTabsProps) => {
+// Added = [] to give them safe defaults if they are missing!
+const TranscriptTabs = ({ 
+  currentTime, 
+  checkpoints, 
+  transcriptSegments = [], 
+  noteEntries = [], 
+  onSeek 
+}: TranscriptTabsProps) => {
   const [activeTab, setActiveTab] = useState<(typeof tabs)[number]>("Transcript");
 
   const formatTime = (seconds: number) => {

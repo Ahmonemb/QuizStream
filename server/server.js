@@ -133,6 +133,44 @@ app.post("/api/upload-video", upload.single("video"), async (req, res) => {
   }
 });
 
+// Add this to your server.js
+app.get("/api/videos", (req, res) => {
+  try {
+    // Transform our quizData object into an array for the frontend
+    const videos = Object.values(quizData).map(video => ({
+      id: video.videoId,
+      title: video.fileName,
+      filename: video.fileName,
+      videoUrl: `http://localhost:5001/api/video/${video.videoId}`,
+      uploadedAt: video.uploadedAt,
+      // Pass along the quiz count if it exists
+      quizCount: video.quizzes ? video.quizzes.length : 0
+    }));
+    
+    res.json(videos);
+  } catch (error) {
+    res.status(500).json({ error: "Failed to list videos" });
+  }
+});
+
+// Add to server.js
+app.delete("/api/videos/:videoId", (req, res) => {
+  const { videoId } = req.params;
+  
+  if (quizData[videoId]) {
+    // Find the hash associated with this video to remove it from fileHashes too
+    const hashToRemove = Object.keys(fileHashes).find(hash => fileHashes[hash] === videoId);
+    if (hashToRemove) delete fileHashes[hashToRemove];
+    
+    delete quizData[videoId];
+    saveDatabase(); // Persist the deletion to database.json
+    console.log(`🗑️ Deleted video: ${videoId}`);
+    res.json({ success: true, id: videoId });
+  } else {
+    res.status(404).json({ error: "Video not found" });
+  }
+});
+
 // ============ CHECK TWELVE LABS TASK STATUS ============
 app.get("/api/task-status/:taskId", async (req, res) => {
   try {
