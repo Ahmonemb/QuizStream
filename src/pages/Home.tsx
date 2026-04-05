@@ -15,9 +15,7 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
-import axios from "axios"; // Add this at the top
-
-
+import { generateQuizFromOverview } from "@/lib/geminiQuiz";
 
 const sessionQuestionTypes = [
   { id: "checkpoint", label: "Checkpoint Quiz", description: "Pause at key concepts with a quick multiple-choice check", icon: Brain },
@@ -38,6 +36,7 @@ const Home = () => {
   const [selectedVideoName, setSelectedVideoName] = useState<string | null>(null);
   const [selectedQuestionTypes, setSelectedQuestionTypes] = useState<Set<string>>(new Set(["checkpoint", "truefalse"]));
   const [questionTarget, setQuestionTarget] = useState([8]);
+  const [isGeneratingQuiz, setIsGeneratingQuiz] = useState(false);
   const [sessionOptions, setSessionOptions] = useState({
     explanations: true,
     hints: true,
@@ -78,6 +77,20 @@ const Home = () => {
   const handleFileSelect = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) setSelectedVideoName(file.name);
+  };
+
+  const handleCreateLearningSession = async () => {
+    setIsGeneratingQuiz(true);
+
+    try {
+      const { overview, quizText } = await generateQuizFromOverview();
+      console.log("TwelveLabs overview (seconds):", overview);
+      console.log("Gemini quiz response:", quizText);
+    } catch (error) {
+      console.error("Unable to generate Gemini quiz response.", error);
+    } finally {
+      setIsGeneratingQuiz(false);
+    }
   };
 
   return (
@@ -191,10 +204,11 @@ const Home = () => {
 
       <button
         disabled={!selectedVideoName}
+        onClick={handleCreateLearningSession}
         className="w-full py-4 rounded-2xl bg-primary text-primary-foreground font-semibold text-base transition-all hover:brightness-110 active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
       >
         <Sparkles className="h-5 w-5" />
-        Create learning session
+        {isGeneratingQuiz ? "Generating Gemini quiz..." : "Create learning session"}
         <ChevronRight className="h-5 w-5" />
       </button>
 
