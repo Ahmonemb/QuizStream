@@ -61,13 +61,13 @@ const Courses = () => {
       setLoadingAI(true);
       setAiError(null);
       try {
-        // Fallback or ID mapping here - assumes selectedCourse.id maps to videoId on backend
         const res = await fetch(`http://localhost:5001/api/quiz/${selectedCourse.id}`);
-        if (!res.ok) throw new Error("Failed to load AI course data");
+        if (!res.ok) throw new Error("Course data not found on AI server.");
 
         const data: QuizResponse = await res.json();
         
-        if (data.quizzes) {
+        // 1. Check if quizzes exists and is an array
+        if (data && Array.isArray(data.quizzes)) {
           const mappedCheckpoints: Checkpoint[] = data.quizzes.map((q, idx) => ({
             id: `quiz-${idx}`,
             time: q.time,
@@ -78,9 +78,13 @@ const Courses = () => {
             status: "upcoming"
           }));
           setSessionCheckpoints(mappedCheckpoints);
+        } else {
+          // 2. If it's not an array, it might still be processing or failed
+          setSessionCheckpoints([]); 
+          console.warn("Backend returned data, but quizzes is not an array:", data);
         }
-      } catch (err) {
-        setAiError(err instanceof Error ? err.message : "Unknown error connecting to AI.");
+      } catch (err: any) {
+        setAiError(err.message);
       } finally {
         setLoadingAI(false);
       }

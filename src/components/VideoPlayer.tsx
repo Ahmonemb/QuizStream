@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ChangeEvent, type MouseEvent } from "react";
 import { Maximize, Pause, Play, Volume2, VolumeX, CheckCircle2, XCircle } from "lucide-react";
 import { Checkpoint } from "@/lib/app-types";
+import { type ReactNode } from "react";
 
 interface VideoPlayerProps {
   videoId: string;
@@ -11,6 +12,7 @@ interface VideoPlayerProps {
   duration: number;
   isPlaying: boolean;
   checkpoints: Checkpoint[];
+  overlay?: ReactNode;
   onTimeUpdate: (time: number) => void;
   onDurationChange: (duration: number) => void;
   onPlayingChange: (isPlaying: boolean) => void;
@@ -28,6 +30,7 @@ const VideoPlayer = ({
   duration,
   isPlaying,
   checkpoints: initialCheckpoints,
+  overlay,
   onTimeUpdate,
   onDurationChange,
   onPlayingChange,
@@ -196,11 +199,6 @@ const VideoPlayer = ({
   };
 
   return (
-<<<<<<< HEAD
-    <div ref={containerRef} className="relative w-full overflow-hidden rounded-xl bg-foreground/95 card-shadow" onMouseMove={revealFullscreenControls}>
-      <div className="group relative aspect-video cursor-pointer overflow-hidden bg-black" onClick={handlePlayPause}>
-        {videoUrl || videoId ? (
-=======
     <div
       ref={containerRef}
       className={`relative w-full rounded-xl bg-foreground/95 card-shadow ${
@@ -215,7 +213,6 @@ const VideoPlayer = ({
         onClick={handlePlayPause}
       >
         {videoUrl ? (
->>>>>>> origin
           <video
             ref={videoRef}
             src={videoUrl || `http://localhost:5001/api/video/${videoId}`}
