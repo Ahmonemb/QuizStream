@@ -25,7 +25,8 @@ export interface CoursePresentation {
 const questionTypeProfiles = {
   checkpoint: {
     label: "Checkpoint Quiz",
-    question: (title: string) => `Which idea from ${title} should the learner be able to restate right now?`,
+    question: (title: string) =>
+      `Which idea from ${title} should the learner be able to restate right now?`,
     options: (title: string) => [
       `The main concept introduced in ${title}`,
       "Only the upload timestamp",
@@ -36,7 +37,8 @@ const questionTypeProfiles = {
   },
   reflection: {
     label: "Short Reflection",
-    question: (title: string) => `What would be the strongest one-line takeaway after this part of ${title}?`,
+    question: (title: string) =>
+      `What would be the strongest one-line takeaway after this part of ${title}?`,
     options: (title: string) => [
       `${title} should leave the learner with one clear idea to restate`,
       "The best summary is to skip the next segment",
@@ -47,7 +49,8 @@ const questionTypeProfiles = {
   },
   ordering: {
     label: "Sequence Recall",
-    question: (title: string) => `What is the best order for engaging with this section of ${title}?`,
+    question: (title: string) =>
+      `What is the best order for engaging with this section of ${title}?`,
     options: () => [
       "Watch, pause at a checkpoint, answer, then continue",
       "Skip ahead, mute audio, then guess the answer",
@@ -58,7 +61,8 @@ const questionTypeProfiles = {
   },
   truefalse: {
     label: "True or False",
-    question: (title: string) => `True or false: QuizStream should use ${title} to create fast confidence checks during playback.`,
+    question: (title: string) =>
+      `True or false: QuizStream should use ${title} to create fast confidence checks during playback.`,
     options: () => [
       "True, because lightweight checks make the lesson feel interactive",
       "False, because checkpoints only work on text lessons",
@@ -69,7 +73,8 @@ const questionTypeProfiles = {
   },
   "term-recall": {
     label: "Key Term Recall",
-    question: (title: string) => `What key term should QuizStream reinforce while ${title} is playing?`,
+    question: (title: string) =>
+      `What key term should QuizStream reinforce while ${title} is playing?`,
     options: () => [
       "The main concept currently being explained",
       "A random file extension",
@@ -106,7 +111,9 @@ export function createPersonalizedCheckpoints(
     return [];
   }
 
-  const quizSetup = normalizeCourseQuizSetup(course.quizSetup ?? DEFAULT_COURSE_QUIZ_SETUP);
+  const quizSetup = normalizeCourseQuizSetup(
+    course.quizSetup ?? DEFAULT_COURSE_QUIZ_SETUP,
+  );
   const selectedTypes =
     quizSetup.questionTypes.length > 0
       ? quizSetup.questionTypes
@@ -115,13 +122,15 @@ export function createPersonalizedCheckpoints(
   const safeDuration = Math.max(duration, 90);
 
   return Array.from({ length: checkpointCount }, (_, index) => {
-    const questionTypeId = selectedTypes[index % selectedTypes.length] ?? "checkpoint";
-    const profile = questionTypeProfiles[questionTypeId] ?? questionTypeProfiles.checkpoint;
+    const questionTypeId =
+      selectedTypes[index % selectedTypes.length] ?? "checkpoint";
+    const profile =
+      questionTypeProfiles[questionTypeId] ?? questionTypeProfiles.checkpoint;
     const ratio = (index + 1) / (checkpointCount + 1);
 
     return {
       id: `${course.id}-${questionTypeId}-${index + 1}`,
-      time: Math.min(Math.round(safeDuration * ratio), safeDuration - 5),
+      time: Math.max(Math.round(safeDuration * ratio), safeDuration + 10),
       label: `${profile.label} ${index + 1}`,
       question: applyQuestionOptions(profile.question(course.title), quizSetup),
       options: profile.options(course.title),
@@ -140,7 +149,9 @@ export function buildCoursePresentation(
     return null;
   }
 
-  const quizSetup = normalizeCourseQuizSetup(course.quizSetup ?? DEFAULT_COURSE_QUIZ_SETUP);
+  const quizSetup = normalizeCourseQuizSetup(
+    course.quizSetup ?? DEFAULT_COURSE_QUIZ_SETUP,
+  );
   const firstName = user?.name.split(" ")[0] || "there";
   const courseCode = `QS-${course.id.slice(0, 4).toUpperCase()}`;
   const enabledOptionLabels = getEnabledOptionLabels(quizSetup);
@@ -158,8 +169,18 @@ export function buildCoursePresentation(
     instructor: `${user?.name || "Your"} workspace`,
     courseCode,
     durationLabel: formatDurationLabel(duration),
-    tags: ["Uploaded", "MP4", ...titleKeywords, ...enabledOptionLabels.slice(0, 2)],
-    transcriptSegments: buildTranscriptSegments(course.title, firstName, quizSetup, duration),
+    tags: [
+      "Uploaded",
+      "MP4",
+      ...titleKeywords,
+      ...enabledOptionLabels.slice(0, 2),
+    ],
+    transcriptSegments: buildTranscriptSegments(
+      course.title,
+      firstName,
+      quizSetup,
+      duration,
+    ),
     noteEntries: buildNoteEntries(course, firstName, quizSetup, duration),
   };
 }
@@ -266,7 +287,9 @@ function applyQuestionOptions(question: string, quizSetup: CourseQuizSetup) {
 
 function getEnabledOptionLabels(quizSetup: CourseQuizSetup) {
   return [
-    quizSetup.sessionOptions.explanations ? "Coach explanations" : "Fast review",
+    quizSetup.sessionOptions.explanations
+      ? "Coach explanations"
+      : "Fast review",
     quizSetup.sessionOptions.hints ? "Hints on" : "Hints off",
     quizSetup.sessionOptions.allowRetakes ? "Retry enabled" : "Single attempt",
     quizSetup.sessionOptions.queueReview ? "Review queue" : "Live only",

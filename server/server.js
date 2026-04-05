@@ -7,10 +7,9 @@ import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import FormData from "form-data";
-import { TwelveLabs } from 'twelvelabs-js'; // ADD THIS
+import { TwelveLabs } from "twelvelabs-js"; // ADD THIS
 import crypto from "crypto";
-import { GoogleGenerativeAI } from '@google/generative-ai'; 
-
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
 dotenv.config();
 
@@ -23,10 +22,12 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 
 // Middleware
-app.use(cors({
-  origin: true, // This automatically reflects the requesting origin perfectly
-  credentials: true,
-}));
+app.use(
+  cors({
+    origin: true, // This automatically reflects the requesting origin perfectly
+    credentials: true,
+  }),
+);
 app.use(express.json());
 app.use(express.urlencoded({ limit: "50mb" }));
 
@@ -63,6 +64,252 @@ function getFileHash(filePath) {
   });
 }
 
+function toSummaryText(summary) {
+  if (typeof summary === "string") {
+    return summary;
+  }
+
+  try {
+    return JSON.stringify(summary, null, 2);
+  } catch {
+    return String(summary ?? "");
+  }
+}
+
+function parseClockTimeToSeconds(value) {
+  if (typeof value !== "string") {
+    return Number.NaN;
+  }
+
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return Number.NaN;
+  }
+
+  const parts = trimmed.split(":").map((part) => Number(part));
+  if (parts.some((part) => !Number.isFinite(part) || part < 0)) {
+    return Number.NaN;
+  }
+
+  if (parts.length === 2) {
+    return parts[0] * 60 + parts[1];
+  }
+
+  if (parts.length === 3) {
+    return parts[0] * 3600 + parts[1] * 60 + parts[2];
+  }
+
+  return Number.NaN;
+}
+
+function extractTimelineAnchorsFromSummary(summaryText, offsetSeconds = 5) {
+  const normalizedSummary = toSummaryText(summaryText);
+  const anchorTimes = [];
+  const seen = new Set();
+
+  const intervalPattern =
+    /(\d{1,2}:\d{2}(?::\d{2})?)\s*[-–—]\s*(\d{1,2}:\d{2}(?::\d{2})?)/g;
+  let match;
+
+  while ((match = intervalPattern.exec(normalizedSummary)) !== null) {
+    const endSeconds = parseClockTimeToSeconds(match[2]);
+    if (!Number.isFinite(endSeconds)) {
+      continue;
+    }
+
+    const derivedSeconds = Math.max(0, Math.round(endSeconds + offsetSeconds));
+    if (seen.has(derivedSeconds)) {
+      continue;
+    }
+
+    seen.add(derivedSeconds);
+    anchorTimes.push(derivedSeconds);
+  }
+
+  return anchorTimes;
+}
+
+const VALID_CHECKPOINT_STATUSES = new Set([
+  "upcoming",
+  "active",
+  "completed",
+  "incorrect",
+]);
+
+class InvalidGeminiOutputError extends Error {
+  constructor(message) {
+    super(message);
+    this.name = "InvalidGeminiOutputError";
+  }
+}
+
+function extractJsonPayload(rawText) {
+  if (typeof rawText !== "string" || rawText.trim().length === 0) {
+    throw new InvalidGeminiOutputError("Gemini returned an empty response.");
+  }
+
+  const trimmed = rawText.trim();
+  const withoutFence = trimmed
+    .replace(/^```(?:json)?\s*/i, "")
+    .replace(/\s*```$/, "")
+    .trim();
+  const candidates = [withoutFence];
+
+  const firstArrayStart = withoutFence.indexOf("[");
+  const lastArrayEnd = withoutFence.lastIndexOf("]");
+  if (firstArrayStart >= 0 && lastArrayEnd > firstArrayStart) {
+    candidates.push(withoutFence.slice(firstArrayStart, lastArrayEnd + 1));
+  }
+
+  const firstObjectStart = withoutFence.indexOf("{");
+  const lastObjectEnd = withoutFence.lastIndexOf("}");
+  if (firstObjectStart >= 0 && lastObjectEnd > firstObjectStart) {
+    candidates.push(withoutFence.slice(firstObjectStart, lastObjectEnd + 1));
+  }
+
+  const seen = new Set();
+  for (const candidate of candidates) {
+    const normalized = candidate.trim();
+    if (!normalized || seen.has(normalized)) {
+      continue;
+    }
+    seen.add(normalized);
+
+    try {
+      return JSON.parse(normalized);
+    } catch {
+      // Try next candidate.
+    }
+  }
+
+  throw new InvalidGeminiOutputError("Gemini response was not valid JSON.");
+}
+
+function normalizeCheckpoint(rawCheckpoint, index, timelineAnchors = []) {
+  if (
+    !rawCheckpoint ||
+    typeof rawCheckpoint !== "object" ||
+    Array.isArray(rawCheckpoint)
+  ) {
+    throw new InvalidGeminiOutputError(
+      `Question ${index + 1} is not a valid object.`,
+    );
+  }
+
+  const hasTimelineAnchors =
+    Array.isArray(timelineAnchors) && timelineAnchors.length > 0;
+  const anchorIndex = hasTimelineAnchors
+    ? Math.min(index, timelineAnchors.length - 1)
+    : -1;
+  const anchoredTime = Number(timelineAnchors[anchorIndex]);
+  const hasAnchoredTime =
+    hasTimelineAnchors && Number.isFinite(anchoredTime) && anchoredTime >= 0;
+  let normalizedTime = Math.round(anchoredTime);
+
+  if (!hasAnchoredTime) {
+    const rawTime = Number(rawCheckpoint.time);
+    if (!Number.isFinite(rawTime) || rawTime < 0) {
+      throw new InvalidGeminiOutputError(
+        `Question ${index + 1} has an invalid 'time' value.`,
+      );
+    }
+
+    normalizedTime = Math.round(rawTime);
+  }
+
+  const question =
+    typeof rawCheckpoint.question === "string"
+      ? rawCheckpoint.question.trim()
+      : "";
+  if (!question) {
+    throw new InvalidGeminiOutputError(
+      `Question ${index + 1} is missing 'question' text.`,
+    );
+  }
+
+  const candidateOptions = Array.isArray(rawCheckpoint.options)
+    ? rawCheckpoint.options
+    : Array.isArray(rawCheckpoint.answers)
+      ? rawCheckpoint.answers
+      : null;
+
+  if (!candidateOptions || candidateOptions.length < 2) {
+    throw new InvalidGeminiOutputError(
+      `Question ${index + 1} must include at least two answer options.`,
+    );
+  }
+
+  const options = candidateOptions
+    .map((option) => String(option).trim())
+    .filter(Boolean);
+  if (options.length < 2) {
+    throw new InvalidGeminiOutputError(
+      `Question ${index + 1} has invalid options after normalization.`,
+    );
+  }
+
+  const rawCorrectIndex = Number.isInteger(rawCheckpoint.correctIndex)
+    ? rawCheckpoint.correctIndex
+    : Number.isInteger(rawCheckpoint.correct)
+      ? rawCheckpoint.correct
+      : Number.NaN;
+
+  if (
+    !Number.isInteger(rawCorrectIndex) ||
+    rawCorrectIndex < 0 ||
+    rawCorrectIndex >= options.length
+  ) {
+    throw new InvalidGeminiOutputError(
+      `Question ${index + 1} has an out-of-range 'correctIndex' value.`,
+    );
+  }
+
+  const rawLabel =
+    typeof rawCheckpoint.label === "string" ? rawCheckpoint.label.trim() : "";
+  const rawId =
+    typeof rawCheckpoint.id === "string" ? rawCheckpoint.id.trim() : "";
+  const rawStatus =
+    typeof rawCheckpoint.status === "string" &&
+    VALID_CHECKPOINT_STATUSES.has(rawCheckpoint.status)
+      ? rawCheckpoint.status
+      : "upcoming";
+
+  return {
+    id: rawId || `checkpoint-${index + 1}`,
+    time: normalizedTime,
+    label: rawLabel || `Question ${index + 1}`,
+    question,
+    options,
+    correctIndex: rawCorrectIndex,
+    status: rawStatus,
+  };
+}
+
+function parseGeminiCheckpoints(rawText, timelineAnchors = []) {
+  const payload = extractJsonPayload(rawText);
+  const rawCheckpoints = Array.isArray(payload)
+    ? payload
+    : Array.isArray(payload?.checkpoints)
+      ? payload.checkpoints
+      : Array.isArray(payload?.quizzes)
+        ? payload.quizzes
+        : null;
+
+  if (!rawCheckpoints) {
+    throw new InvalidGeminiOutputError(
+      "Gemini must return a JSON array of checkpoint questions.",
+    );
+  }
+
+  if (rawCheckpoints.length === 0) {
+    throw new InvalidGeminiOutputError("Gemini returned zero questions.");
+  }
+
+  return rawCheckpoints.map((checkpoint, index) =>
+    normalizeCheckpoint(checkpoint, index, timelineAnchors),
+  );
+}
+
 // ============ UPLOAD VIDEO ============
 app.post("/api/upload-video", upload.single("video"), async (req, res) => {
   try {
@@ -82,18 +329,18 @@ app.post("/api/upload-video", upload.single("video"), async (req, res) => {
     if (fileHashes[fileFingerprint]) {
       const existingVideoId = fileHashes[fileFingerprint];
       const existingData = quizData[existingVideoId];
-      
+
       console.log(`⚡ Video already exists! Skipping Twelve Labs upload.`);
-      
+
       // Delete the redundant file we just saved to the uploads folder
-      fs.unlinkSync(videoPath); 
+      fs.unlinkSync(videoPath);
 
       // Send back the existing data instantly
-      return res.json({ 
-        success: true, 
-        videoId: existingVideoId, 
-        fileName: existingData.fileName, 
-        taskId: existingData.taskId 
+      return res.json({
+        success: true,
+        videoId: existingVideoId,
+        fileName: existingData.fileName,
+        taskId: existingData.taskId,
       });
     }
 
@@ -107,13 +354,13 @@ app.post("/api/upload-video", upload.single("video"), async (req, res) => {
       language: "en",
     });
 
-    const taskId = task.id; 
+    const taskId = task.id;
     console.log(`✅ Video uploaded successfully! Task ID: ${taskId}`);
 
     // Store video info
     quizData[videoId] = {
       videoId,
-      taskId, 
+      taskId,
       fileName,
       uploadedAt: new Date(),
       localPath: videoPath, // Keep this one for streaming!
@@ -121,12 +368,11 @@ app.post("/api/upload-video", upload.single("video"), async (req, res) => {
 
     // 4. Save the fingerprint so we remember it next time!
     fileHashes[fileFingerprint] = videoId;
-    
+
     // NEW: Save the memory to the hard drive!
     saveDatabase();
 
     res.json({ success: true, videoId, fileName, taskId });
-    
   } catch (error) {
     console.error("\n❌ TWELVE LABS UPLOAD ERROR:", error.message || error);
     res.status(500).json({ error: "Failed to upload video to Twelve Labs." });
@@ -137,16 +383,16 @@ app.post("/api/upload-video", upload.single("video"), async (req, res) => {
 app.get("/api/videos", (req, res) => {
   try {
     // Transform our quizData object into an array for the frontend
-    const videos = Object.values(quizData).map(video => ({
+    const videos = Object.values(quizData).map((video) => ({
       id: video.videoId,
       title: video.fileName,
       filename: video.fileName,
       videoUrl: `http://localhost:5001/api/video/${video.videoId}`,
       uploadedAt: video.uploadedAt,
       // Pass along the quiz count if it exists
-      quizCount: video.quizzes ? video.quizzes.length : 0
+      quizCount: Array.isArray(video.quizzes) ? video.quizzes.length : 0,
     }));
-    
+
     res.json(videos);
   } catch (error) {
     res.status(500).json({ error: "Failed to list videos" });
@@ -156,12 +402,14 @@ app.get("/api/videos", (req, res) => {
 // Add to server.js
 app.delete("/api/videos/:videoId", (req, res) => {
   const { videoId } = req.params;
-  
+
   if (quizData[videoId]) {
     // Find the hash associated with this video to remove it from fileHashes too
-    const hashToRemove = Object.keys(fileHashes).find(hash => fileHashes[hash] === videoId);
+    const hashToRemove = Object.keys(fileHashes).find(
+      (hash) => fileHashes[hash] === videoId,
+    );
     if (hashToRemove) delete fileHashes[hashToRemove];
-    
+
     delete quizData[videoId];
     saveDatabase(); // Persist the deletion to database.json
     console.log(`🗑️ Deleted video: ${videoId}`);
@@ -208,27 +456,31 @@ app.post("/api/generate-quiz", async (req, res) => {
       queryText: prompt,
       options: ["visual", "conversation"],
       filter: {
-        id: [tlVideoId] // Restricts the search to the video we just uploaded
-      }
+        id: [tlVideoId], // Restricts the search to the video we just uploaded
+      },
     });
 
     const results = searchResults.data || [];
-    
+
     // 3. Extract timestamps. If no results, space them out evenly as a fallback.
     let timestamps = [];
     if (results.length > 0) {
       timestamps = results.slice(0, numQuestions).map((result) => ({
         time: Math.floor(result.start),
-        segment: prompt 
+        segment: prompt,
       }));
     } else {
-      console.log("No specific search results found, using default timestamps...");
+      console.log(
+        "No specific search results found, using default timestamps...",
+      );
       for (let i = 0; i < numQuestions; i++) {
         timestamps.push({ time: i * 30 + 10, segment: prompt });
       }
     }
 
-    console.log(`Found ${timestamps.length} moments in the video! Sending to Gemini...`);
+    console.log(
+      `Found ${timestamps.length} moments in the video! Sending to Gemini...`,
+    );
 
     // Store quiz data
     quizData[videoId].quizzes = quizzes;
@@ -244,7 +496,7 @@ app.post("/api/generate-quiz", async (req, res) => {
 app.post("/api/analyze-video", async (req, res) => {
   try {
     // 1. Extract questionCount from the frontend request!
-    const { videoId, geminiPrompt, questionCount } = req.body; 
+    const { videoId, geminiPrompt, questionCount } = req.body;
 
     if (!quizData[videoId]) {
       return res.status(404).json({ error: "Video not found locally" });
@@ -256,15 +508,19 @@ app.post("/api/analyze-video", async (req, res) => {
     const tlVideoId = task.videoId;
 
     if (!tlVideoId) {
-      throw new Error("Twelve Labs has not finished processing this video yet.");
+      throw new Error(
+        "Twelve Labs has not finished processing this video yet.",
+      );
     }
 
-    console.log(`1️⃣ Asking Twelve Labs to extract enough info for ${questionCount} questions...`);
+    console.log(
+      `1️⃣ Asking Twelve Labs to extract enough info for ${questionCount} questions...`,
+    );
 
     // 2. Inject the target number into the Twelve Labs prompt!
     const tlGeneration = await client.analyze({
       videoId: tlVideoId,
-      prompt: `Give me a general overview of the important information that is covered, with time intervals of when the information is given. Make sure to extract at least enough distinct key moments and concepts to generate ${questionCount} high-quality multiple-choice questions. Make sure the time intervals are in seconds.`
+      prompt: `Give me a general overview of the important information that is covered, with time intervals of when the information is given. Make sure to extract at least enough distinct key moments and concepts to generate ${questionCount} high-quality multiple-choice questions. Make sure the time intervals are in seconds.`,
     });
 
     const twelveLabsSummary = tlGeneration.data;
@@ -275,54 +531,94 @@ app.post("/api/analyze-video", async (req, res) => {
 
     console.log("2️⃣ Sending summary to Gemini...");
 
-    const finalGeminiOutput = await processWithGemini(twelveLabsSummary, geminiPrompt);
-    
+    const finalGeminiOutput = await processWithGemini(
+      twelveLabsSummary,
+      geminiPrompt,
+      questionCount,
+    );
+
     console.log("✅ Gemini Processing Complete!");
 
-    // NEW: Save the generated quizzes to our memory
+    // Save only normalized checkpoint objects.
     quizData[videoId].quizzes = finalGeminiOutput;
-    
+
     // NEW: Save it permanently to the hard drive!
     saveDatabase();
 
-    res.json({ 
-      success: true, 
+    res.json({
+      success: true,
       twelveLabsRawOutput: twelveLabsSummary,
-      geminiFinalOutput: finalGeminiOutput 
+      geminiFinalOutput: finalGeminiOutput,
     });
 
-    console.log(finalGeminiOutput)
-
+    console.log(finalGeminiOutput);
   } catch (error) {
+    if (error instanceof InvalidGeminiOutputError) {
+      return res.status(422).json({ error: error.message });
+    }
+
     console.error("AI Pipeline error:", error.message || error);
     res.status(500).json({ error: error.message });
   }
 });
 
 // ============ GEMINI HELPER ============
-async function processWithGemini(twelveLabsSummary, userPrompt) {
+async function processWithGemini(twelveLabsSummary, userPrompt, questionCount) {
   try {
-    // 1. Tell the SDK which model to use
     const model = genAI.getGenerativeModel({ model: "gemini-3-flash-preview" });
+    const summaryText = toSummaryText(twelveLabsSummary);
+    const timelineAnchors = extractTimelineAnchorsFromSummary(summaryText, 5);
 
-    // 2. Build the prompt
-    const prompt = `You are an expert educational assistant. 
-    
-    Here is a summary and timeline of a video provided by a video-understanding AI:
-    """
-    ${twelveLabsSummary}
-    """
-    
-    Based ONLY on the video information above, please complete the following task:
-    ${userPrompt || "Format this summary into a clean, easy-to-read study guide."}`;
+    if (timelineAnchors.length > 0) {
+      console.log(
+        `🕒 Derived ${timelineAnchors.length} checkpoint timestamps from Twelve Labs ranges (end + 5s).`,
+      );
+    }
 
-    // 3. Generate the content! No URLs or headers to worry about.
+    const prompt = `You are an expert educational assistant.
+
+You will receive a timeline summary of a video.
+Return ONLY valid JSON. No markdown, no prose, no code fences.
+
+Required output format:
+[
+  {
+    "id": "checkpoint-1",
+    "time": 42,
+    "label": "Question 1",
+    "question": "...",
+    "options": ["...", "...", "...", "..."],
+    "correctIndex": 0,
+    "status": "upcoming"
+  }
+]
+
+Rules:
+- Return an array of objects.
+- Use only facts from the provided timeline summary.
+- 'time' must be numeric seconds >= 0.
+- 'correctIndex' must be a 0-based integer that points to an option.
+- Include at least 2 options per question.
+- Keep 'status' as "upcoming".
+
+Video timeline summary:
+"""
+${summaryText}
+"""
+
+Task instruction from user:
+${userPrompt || `Create ${Number(questionCount) || 3} high-quality multiple-choice checkpoints.`}`;
+
     const result = await model.generateContent(prompt);
     const response = await result.response;
-    
-    return response.text();
-    
+
+    const rawText = response.text();
+    return parseGeminiCheckpoints(rawText, timelineAnchors);
   } catch (error) {
+    if (error instanceof InvalidGeminiOutputError) {
+      throw error;
+    }
+
     console.error("Gemini API Error:", error.message || error);
     throw new Error("Failed to process data with Gemini.");
   }
@@ -338,13 +634,37 @@ app.get("/api/quiz/:videoId", (req, res) => {
       return res.status(404).json({ error: "Video not found" });
     }
 
+    if (data.quizzes == null) {
+      return res.json({
+        videoId,
+        fileName: data.fileName,
+        quizzes: [],
+        uploadedAt: data.uploadedAt,
+      });
+    }
+
+    if (!Array.isArray(data.quizzes)) {
+      return res.status(409).json({
+        error:
+          "Legacy quiz data format detected for this video. Regenerate quizzes to use the current checkpoint format.",
+      });
+    }
+
+    const normalizedQuizzes = data.quizzes.map((checkpoint, index) =>
+      normalizeCheckpoint(checkpoint, index),
+    );
+
     res.json({
       videoId,
       fileName: data.fileName,
-      quizzes: data.quizzes || [],
+      quizzes: normalizedQuizzes,
       uploadedAt: data.uploadedAt,
     });
   } catch (error) {
+    if (error instanceof InvalidGeminiOutputError) {
+      return res.status(422).json({ error: error.message });
+    }
+
     res.status(500).json({ error: error.message });
   }
 });
@@ -361,7 +681,10 @@ app.get("/api/quiz-status/:videoId", (req, res) => {
 
     res.json({
       videoId,
-      status: data.quizzes ? "completed" : "processing",
+      status:
+        Array.isArray(data.quizzes) && data.quizzes.length > 0
+          ? "completed"
+          : "processing",
       fileName: data.fileName,
     });
   } catch (error) {
