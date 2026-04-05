@@ -1,1 +1,176 @@
-{}
+{
+  "quizData": {
+    "video_1775383122759": {
+      "videoId": "video_1775383122759",
+      "taskId": "69d2326c711f36db761a5d17",
+      "fileName": "2016 NBA Finals Game 7 Mini-Movie.mp4",
+      "uploadedAt": "2026-04-05T09:59:09.931Z",
+      "localPath": "uploads\\e14b7ab504081fceb37d057c30741241",
+      "quizzes": [
+        {
+          "id": "checkpoint-1",
+          "time": 116,
+          "label": "Question 1",
+          "question": "At the halftime break of Game 7, which team held the lead and by how many points?",
+          "options": [
+            "The Golden State Warriors led by seven points",
+            "The Cleveland Cavaliers led by seven points",
+            "The game was tied at halftime",
+            "The Golden State Warriors led by ten points"
+          ],
+          "correctIndex": 0,
+          "status": "upcoming"
+        },
+        {
+          "id": "checkpoint-2",
+          "time": 179,
+          "label": "Question 2",
+          "question": "True or False: In the third quarter, Kyrie Irving hit a three-pointer that gave Cleveland their largest lead of the game.",
+          "options": [
+            "True",
+            "False"
+          ],
+          "correctIndex": 0,
+          "status": "upcoming"
+        },
+        {
+          "id": "checkpoint-3",
+          "time": 269,
+          "label": "Question 3",
+          "question": "Who scored the decisive game-winning three-pointer while being defended by Steph Curry in the final seconds?",
+          "options": [
+            "LeBron James",
+            "Kyrie Irving",
+            "Draymond Green",
+            "Tyronn Lue"
+          ],
+          "correctIndex": 1,
+          "status": "upcoming"
+        },
+        {
+          "id": "checkpoint-4",
+          "time": 291,
+          "label": "Question 4",
+          "question": "The victory in 2016 ended how many years of championship frustration for the city of Cleveland?",
+          "options": [
+            "19 years",
+            "31 years",
+            "52 years",
+            "73 years"
+          ],
+          "correctIndex": 2,
+          "status": "upcoming"
+        },
+        {
+          "id": "checkpoint-5",
+          "time": 363,
+          "label": "Question 5",
+          "question": "True or False: LeBron James referred to Coach Tyronn Lue as the final piece of the 16-piece puzzle that completed the team's championship journey.",
+          "options": [
+            "True",
+            "False"
+          ],
+          "correctIndex": 0,
+          "status": "upcoming"
+        }
+      ]
+    },
+    "video_1775387875466": {
+      "videoId": "video_1775387875466",
+      "taskId": "69d244e5cb42041ab6d1c4c4",
+      "fileName": "AVL Tree 5 mins.mp4",
+      "uploadedAt": "2026-04-05T11:17:59.192Z",
+      "localPath": "uploads\\95e8e4beee05b5d79223ad8974b32b04",
+      "quizzes": [
+        {
+          "id": "checkpoint-1",
+          "time": 10,
+          "label": "Question 1",
+          "question": "Who are AVL trees named after?",
+          "options": [
+            "Adelson-Velsky and Landis",
+            "Allen, Victor, and Landis",
+            "Adelson, Von-Neumann, and Lewis",
+            "Armstrong, Vance, and Lee"
+          ],
+          "correctIndex": 0,
+          "status": "upcoming"
+        },
+        {
+          "id": "checkpoint-2",
+          "time": 75,
+          "label": "Question 2",
+          "question": "How is the balance factor of a node in an AVL tree calculated based on the video description?",
+          "options": [
+            "Right subtree height minus left subtree height",
+            "Total number of nodes divided by height",
+            "Left subtree height minus right subtree height",
+            "The height of the root minus the height of the leaf"
+          ],
+          "correctIndex": 2,
+          "status": "upcoming"
+        },
+        {
+          "id": "checkpoint-3",
+          "time": 81,
+          "label": "Question 3",
+          "question": "Which of the following sets of values represent the only valid balance factors for a node in an AVL tree?",
+          "options": [
+            "Any value between -2 and +2",
+            "-1, 0, or +1",
+            "0, 1, or 2",
+            "Only 0"
+          ],
+          "correctIndex": 1,
+          "status": "upcoming"
+        },
+        {
+          "id": "checkpoint-4",
+          "time": 155,
+          "label": "Question 4",
+          "question": "If a node is found to have a balance factor of -2, what does this indicate about the tree?",
+          "options": [
+            "The tree is perfectly balanced",
+            "The tree is a Red-Black tree",
+            "It is not a valid AVL tree and violates the balance condition",
+            "The tree needs to be deleted"
+          ],
+          "correctIndex": 2,
+          "status": "upcoming"
+        },
+        {
+          "id": "checkpoint-5",
+          "time": 190,
+          "label": "Question 5",
+          "question": "Why are AVL trees considered more efficient than Red-Black trees for lookup-intensive (read-heavy) applications?",
+          "options": [
+            "They have a slower search time complexity",
+            "They are more strictly balanced, resulting in a smaller maximum height",
+            "They do not require any rebalancing during insertions",
+            "They use a linear search instead of a binary search"
+          ],
+          "correctIndex": 1,
+          "status": "upcoming"
+        },
+        {
+          "id": "checkpoint-6",
+          "time": 260,
+          "label": "Question 6",
+          "question": "In the provided code implementation, what is the initial height assigned to a new node upon creation?",
+          "options": [
+            "0",
+            "1",
+            "-1",
+            "2"
+          ],
+          "correctIndex": 1,
+          "status": "upcoming"
+        }
+      ]
+    }
+  },
+  "fileHashes": {
+    "a26957df96df7f8fffb767e8b89536c8e234bb11dfebff5b91a2c1a9f4f486a3": "video_1775383122759",
+    "6fec92ed4f855822cd140b1ba25625e426ee2ef8aed08b264e0501d0ba20e79a": "video_1775387875466"
+  }
+}

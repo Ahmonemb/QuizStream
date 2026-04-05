@@ -54,13 +54,13 @@ export interface CourseRecord extends UploadedVideo {
 }
 
 export const DEFAULT_COURSE_QUIZ_SETUP: CourseQuizSetup = {
-  questionTypes: ["checkpoint", "truefalse"],
+  questionTypes: ["checkpoint"],
   questionTarget: 8,
   sessionOptions: {
-    explanations: true,
-    hints: true,
-    queueReview: true,
-    allowRetakes: true,
+    explanations: false,
+    hints: false,
+    queueReview: false,
+    allowRetakes: false,
   },
 };
 

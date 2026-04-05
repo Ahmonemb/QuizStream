@@ -2,6 +2,8 @@ import { useEffect, useRef, useState, type ChangeEvent, type MouseEvent } from "
 import { Maximize, Pause, Play, Volume2, VolumeX, CheckCircle2, XCircle } from "lucide-react";
 import { Checkpoint } from "@/lib/app-types";
 import { type ReactNode } from "react";
+import { useAppState } from "@/context/AppStateContext";
+import { PLAYBACK_SPEED_OPTIONS, type PlaybackSpeed } from "@/lib/playbackSpeed";
 
 interface VideoPlayerProps {
   videoId: string;
@@ -20,6 +22,7 @@ interface VideoPlayerProps {
 }
 
 const FULLSCREEN_CONTROLS_TIMEOUT_MS = 2200;
+const TITLE_OVERLAY_TIMEOUT_MS = 2000;
 
 const VideoPlayer = ({
   videoId,
@@ -36,6 +39,7 @@ const VideoPlayer = ({
   onPlayingChange,
   onCheckpointStatusChange,
 }: VideoPlayerProps) => {
+  const { playbackSpeed, setPlaybackSpeed } = useAppState();
   const [isMuted, setIsMuted] = useState(false);
   const [volume, setVolume] = useState(1);
   const [lastVolume, setLastVolume] = useState(1);
@@ -44,6 +48,7 @@ const VideoPlayer = ({
   const [videoError, setVideoError] = useState<string | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showFullscreenControls, setShowFullscreenControls] = useState(true);
+  const [showTitleOverlay, setShowTitleOverlay] = useState(true);
   
   // -- AI Internal State --
   const [localCheckpoints, setLocalCheckpoints] = useState<Checkpoint[]>(initialCheckpoints);
@@ -55,6 +60,7 @@ const VideoPlayer = ({
   const timelineRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const hideControlsTimeoutRef = useRef<number | null>(null);
+  const hideTitleTimeoutRef = useRef<number | null>(null);
 
   const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
   const hasOverlay = Boolean(activeQuiz);
@@ -68,6 +74,13 @@ const VideoPlayer = ({
     const video = videoRef.current;
     if (video) { video.volume = volume; video.muted = isMuted; }
   }, [isMuted, volume]);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (video) {
+      video.playbackRate = Number(playbackSpeed);
+    }
+  }, [playbackSpeed]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -110,8 +123,37 @@ const VideoPlayer = ({
     return () => { if (hideControlsTimeoutRef.current) window.clearTimeout(hideControlsTimeoutRef.current); };
   }, [hasOverlay, isFullscreen, isPlaying]);
 
+  useEffect(() => {
+    if (hideTitleTimeoutRef.current) window.clearTimeout(hideTitleTimeoutRef.current);
+    if (!isPlaying || hasOverlay) {
+      setShowTitleOverlay(true);
+      return;
+    }
+    hideTitleTimeoutRef.current = window.setTimeout(() => {
+      setShowTitleOverlay(false);
+    }, TITLE_OVERLAY_TIMEOUT_MS);
+    return () => {
+      if (hideTitleTimeoutRef.current) window.clearTimeout(hideTitleTimeoutRef.current);
+    };
+  }, [hasOverlay, isPlaying]);
+
   const revealFullscreenControls = () => {
     if (isFullscreen) setShowFullscreenControls(true);
+  };
+
+  const revealTitleOverlay = () => {
+    setShowTitleOverlay(true);
+    if (hideTitleTimeoutRef.current) window.clearTimeout(hideTitleTimeoutRef.current);
+    if (isPlaying && !hasOverlay) {
+      hideTitleTimeoutRef.current = window.setTimeout(() => {
+        setShowTitleOverlay(false);
+      }, TITLE_OVERLAY_TIMEOUT_MS);
+    }
+  };
+
+  const handleMouseActivity = () => {
+    revealFullscreenControls();
+    revealTitleOverlay();
   };
 
   const formatTime = (seconds: number) => {
@@ -135,6 +177,10 @@ const VideoPlayer = ({
     seekToTime(progressPercent * duration);
   };
 
+  const handlePlaybackSpeedChange = (event: ChangeEvent<HTMLSelectElement>) => {
+    setPlaybackSpeed(event.target.value as PlaybackSpeed);
+  };
+
   // AI Time Event Hook
   const handleTimeUpdateInternal = (event: React.SyntheticEvent<HTMLVideoElement>) => {
     const current = event.currentTarget.currentTime;
@@ -145,6 +191,19 @@ const VideoPlayer = ({
     if (triggeredQuiz && !activeQuiz) {
       onPlayingChange(false);
       setActiveQuiz(triggeredQuiz);
+      return;
+    }
+
+    const endOfVideoQuiz = localCheckpoints.find(
+      (cp) =>
+        cp.status === "upcoming" &&
+        duration > 0 &&
+        cp.time >= duration &&
+        current >= duration - 0.5,
+    );
+    if (endOfVideoQuiz && !activeQuiz) {
+      onPlayingChange(false);
+      setActiveQuiz({ ...endOfVideoQuiz, time: duration });
     }
   };
 
@@ -204,7 +263,7 @@ const VideoPlayer = ({
       className={`relative w-full rounded-xl bg-foreground/95 card-shadow ${
         hasOverlay && !isFullscreen ? "overflow-visible" : "overflow-hidden"
       } ${isFullscreen ? "flex h-full flex-col justify-center bg-black" : ""}`}
-      onMouseMove={revealFullscreenControls}
+      onMouseMove={handleMouseActivity}
     >
       <div
         className={`group relative cursor-pointer overflow-hidden bg-black ${
@@ -226,7 +285,18 @@ const VideoPlayer = ({
             onTimeUpdate={handleTimeUpdateInternal}
             onPlay={() => onPlayingChange(true)}
             onPause={() => onPlayingChange(false)}
-            onEnded={() => onPlayingChange(false)}
+            onEnded={() => {
+              onPlayingChange(false);
+              const endOfVideoQuiz = localCheckpoints.find(
+                (cp) =>
+                  cp.status === "upcoming" &&
+                  duration > 0 &&
+                  cp.time >= duration,
+              );
+              if (endOfVideoQuiz && !activeQuiz) {
+                setActiveQuiz({ ...endOfVideoQuiz, time: duration });
+              }
+            }}
             onError={() => {
               setVideoError("This video could not be played.");
               onPlayingChange(false);
@@ -236,7 +306,7 @@ const VideoPlayer = ({
           <div className="absolute inset-0 bg-gradient-to-br from-primary/20 to-secondary/20" />
         )}
 
-        <div className={`pointer-events-none absolute inset-x-0 top-0 bg-gradient-to-b from-black/60 to-transparent px-5 py-4 transition-opacity duration-300 ${shouldShowControls ? "opacity-100" : "opacity-0"}`}>
+        <div className={`pointer-events-none absolute inset-x-0 top-0 bg-gradient-to-b from-black/60 to-transparent px-5 py-4 transition-opacity duration-300 ${showTitleOverlay ? "opacity-100" : "opacity-0"}`}>
           <h3 className="text-xl font-semibold text-primary-foreground">{lessonTitle}</h3>
           <p className="text-sm text-primary-foreground/70">{lessonSubtitle}</p>
         </div>
@@ -302,7 +372,10 @@ const VideoPlayer = ({
         <div ref={timelineRef} className={`relative mb-3 h-2 rounded-full bg-muted ${duration > 0 ? "cursor-pointer" : "cursor-not-allowed opacity-60"}`} onClick={handleTimelineClick}>
           <div className="absolute inset-y-0 left-0 rounded-full bg-primary transition-all" style={{ width: `${progress}%` }} />
           {localCheckpoints.map((checkpoint) => {
-            const position = duration > 0 ? (checkpoint.time / duration) * 100 : 0;
+            const position =
+              duration > 0
+                ? Math.min((checkpoint.time / duration) * 100, 100)
+                : 0;
             return (
               <button
                 key={checkpoint.id}
@@ -340,6 +413,22 @@ const VideoPlayer = ({
               disabled={!videoUrl && !videoId} className="h-2 w-28 cursor-pointer accent-primary disabled:opacity-40" aria-label="Volume"
             />
             <span className="font-mono text-sm text-muted-foreground">{formatTime(currentTime)} / {formatTime(duration)}</span>
+            <label className="flex items-center gap-2 text-sm text-muted-foreground">
+              <span className="hidden sm:inline">Speed</span>
+              <select
+                value={playbackSpeed}
+                onChange={handlePlaybackSpeedChange}
+                className="h-8 rounded-md border border-border bg-background px-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-40"
+                disabled={!videoUrl && !videoId}
+                aria-label="Playback speed"
+              >
+                {PLAYBACK_SPEED_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
           </div>
 
           <div className="flex items-center gap-3">

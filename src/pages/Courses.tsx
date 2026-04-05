@@ -3,9 +3,6 @@ import {
   ArrowLeft,
   Loader2,
   Plus,
-  RefreshCw,
-  Share2,
-  Tag,
   Trash2,
   Video,
   AlertCircle,
@@ -13,7 +10,6 @@ import {
 import AddCourseModal from "@/components/AddCourseModal";
 import VideoPlayer from "@/components/VideoPlayer";
 import ProgressPanel from "@/components/ProgressPanel";
-import TranscriptTabs from "@/components/TranscriptTabs";
 import { Checkpoint } from "@/lib/app-types";
 import { Button } from "@/components/ui/button";
 import {
@@ -24,10 +20,6 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { useAppState } from "@/context/AppStateContext";
-import {
-  buildCoursePresentation,
-  formatUploadDate,
-} from "@/lib/coursePresentation";
 
 interface QuizResponse {
   videoId: string;
@@ -35,6 +27,8 @@ interface QuizResponse {
   quizzes: Checkpoint[];
   uploadedAt: string;
 }
+
+const formatVideoTitle = (title: string) => title.replace(/\.mp4$/i, "");
 
 const Courses = () => {
   const {
@@ -68,11 +62,6 @@ const Courses = () => {
   const [aiError, setAiError] = useState<string | null>(null);
 
   const firstName = user?.name.split(" ")[0] ?? "there";
-  const coursePresentation = buildCoursePresentation(
-    selectedCourse,
-    user,
-    duration,
-  );
 
   useEffect(() => {
     if (courses.length === 0) setIsLibraryView(true);
@@ -153,15 +142,14 @@ const Courses = () => {
     answeredCheckpointCount > 0
       ? Math.round((correctCheckpointCount / answeredCheckpointCount) * 100)
       : 0;
-  const showPlayerView =
-    !isLibraryView && Boolean(selectedCourse && coursePresentation);
+  const showPlayerView = !isLibraryView && Boolean(selectedCourse);
 
   return (
     <>
       <div className="flex min-w-0 flex-1">
         <div className="min-w-0 flex-1 pb-20 lg:pb-0">
           <div className="mx-auto max-w-[960px] px-4 py-6 lg:px-8">
-            {showPlayerView && selectedCourse && coursePresentation ? (
+            {showPlayerView && selectedCourse ? (
               <>
                 <div className="mb-5">
                   <Button
@@ -190,7 +178,7 @@ const Courses = () => {
                   <>
                     <VideoPlayer
                       videoId={selectedCourse.id}
-                      lessonTitle={selectedCourse.title}
+                      lessonTitle={formatVideoTitle(selectedCourse.title)}
                       lessonSubtitle={`${sessionCheckpoints.length} AI Checkpoints`}
                       videoUrl={selectedCourse.videoUrl}
                       currentTime={currentTime}
@@ -202,40 +190,11 @@ const Courses = () => {
                       onPlayingChange={setIsPlaying}
                       onCheckpointStatusChange={setSessionCheckpoints}
                     />
-
-                    <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                      <div>
-                        <h2 className="text-lg font-semibold text-foreground">
-                          {coursePresentation.moduleTitle}
-                        </h2>
-                        <p className="mt-0.5 text-sm text-muted-foreground">
-                          {coursePresentation.instructor} /{" "}
-                          {coursePresentation.courseCode} / Uploaded{" "}
-                          {formatUploadDate(selectedCourse.uploadedAt)}
-                        </p>
-                        <div className="mt-2 flex flex-wrap items-center gap-2">
-                          {coursePresentation.tags.map((tag) => (
-                            <span
-                              key={tag}
-                              className="inline-flex items-center gap-1 rounded-full bg-accent px-2.5 py-0.5 text-xs font-medium text-accent-foreground"
-                            >
-                              <Tag className="h-3 w-3" />
-                              {tag}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                      <button className="inline-flex shrink-0 items-center gap-2 rounded-xl border border-border px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-muted/50">
-                        <Share2 className="h-4 w-4" />
-                        Share Session
-                      </button>
+                    <div className="mt-4">
+                      <h2 className="text-lg font-semibold text-foreground">
+                        {formatVideoTitle(selectedCourse.title)}
+                      </h2>
                     </div>
-
-                    <TranscriptTabs
-                      currentTime={currentTime}
-                      checkpoints={sessionCheckpoints}
-                      onSeek={setCurrentTime}
-                    />
                   </>
                 )}
               </>
@@ -304,7 +263,7 @@ const Courses = () => {
                                   className="min-w-0 flex-1 text-left"
                                 >
                                   <p className="truncate text-sm font-medium text-foreground">
-                                    {course.title}
+                                    {formatVideoTitle(course.title)}
                                   </p>
                                   <p className="mt-1 truncate text-xs text-muted-foreground">
                                     {course.filename}

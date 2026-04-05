@@ -6,6 +6,11 @@ import {
   DEFAULT_COURSE_QUIZ_SETUP,
   normalizeCourseQuizSetup,
 } from "@/lib/app-types";
+import {
+  DEFAULT_PLAYBACK_SPEED,
+  isPlaybackSpeed,
+  type PlaybackSpeed,
+} from "@/lib/playbackSpeed";
 import { UploadedVideo, deleteVideoFile, listUploadedVideos } from "@/lib/videoApi";
 
 const USER_STORAGE_KEY = "quizstream.user";
@@ -13,6 +18,7 @@ const SELECTED_COURSE_STORAGE_KEY = "quizstream.selectedCourseId";
 const VIDEO_CACHE_STORAGE_KEY = "quizstream.videoCache";
 const COURSE_QUIZ_SETUP_STORAGE_KEY = "quizstream.courseQuizSetups";
 const THEME_STORAGE_KEY = "quizstream.theme";
+const PLAYBACK_SPEED_STORAGE_KEY = "quizstream.playbackSpeed";
 
 export type AppTheme = "light" | "dark" | "system";
 
@@ -22,12 +28,14 @@ interface AppStateContextValue {
   selectedCourse: CourseRecord | null;
   selectedCourseId: string | null;
   theme: AppTheme;
+  playbackSpeed: PlaybackSpeed;
   isLoadingCourses: boolean;
   coursesError: string | null;
   createUser: (profile: { name: string; email: string }) => void;
   updateUser: (profile: { name: string; email: string }) => void;
   logout: () => void;
   setTheme: (theme: AppTheme) => void;
+  setPlaybackSpeed: (playbackSpeed: PlaybackSpeed) => void;
   selectCourse: (courseId: string | null) => void;
   refreshCourses: (preferredCourseId?: string) => Promise<CourseRecord[]>;
   saveCourseQuizSetup: (courseId: string, quizSetup: CourseQuizSetup) => void;
@@ -40,6 +48,7 @@ export const AppStateProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<AppUser | null>(() => readStoredUser());
   const [uploadedVideos, setUploadedVideos] = useState<UploadedVideo[]>(() => readCachedVideos());
   const [theme, setThemeState] = useState<AppTheme>(() => readStoredTheme());
+  const [playbackSpeed, setPlaybackSpeedState] = useState<PlaybackSpeed>(() => readStoredPlaybackSpeed());
   const [courseQuizSetups, setCourseQuizSetups] = useState<Record<string, CourseQuizSetup>>(
     () => readStoredCourseQuizSetups(),
   );
@@ -76,6 +85,10 @@ export const AppStateProvider = ({ children }: { children: ReactNode }) => {
 
     window.localStorage.removeItem(SELECTED_COURSE_STORAGE_KEY);
   }, [selectedCourseId]);
+
+  useEffect(() => {
+    window.localStorage.setItem(PLAYBACK_SPEED_STORAGE_KEY, playbackSpeed);
+  }, [playbackSpeed]);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -169,6 +182,10 @@ export const AppStateProvider = ({ children }: { children: ReactNode }) => {
     setThemeState(themeValue);
   }
 
+  function setPlaybackSpeed(playbackSpeedValue: PlaybackSpeed) {
+    setPlaybackSpeedState(playbackSpeedValue);
+  }
+
   function selectCourse(courseId: string | null) {
     setSelectedCourseId(courseId);
   }
@@ -230,12 +247,14 @@ export const AppStateProvider = ({ children }: { children: ReactNode }) => {
         selectedCourse,
         selectedCourseId,
         theme,
+        playbackSpeed,
         isLoadingCourses,
         coursesError,
         createUser,
         updateUser,
         logout,
         setTheme,
+        setPlaybackSpeed,
         selectCourse,
         refreshCourses,
         saveCourseQuizSetup,
@@ -352,4 +371,15 @@ function readStoredTheme(): AppTheme {
   return storedTheme === "light" || storedTheme === "dark" || storedTheme === "system"
     ? storedTheme
     : "system";
+}
+
+function readStoredPlaybackSpeed(): PlaybackSpeed {
+  if (typeof window === "undefined") {
+    return DEFAULT_PLAYBACK_SPEED;
+  }
+
+  const storedPlaybackSpeed = window.localStorage.getItem(PLAYBACK_SPEED_STORAGE_KEY);
+  return storedPlaybackSpeed && isPlaybackSpeed(storedPlaybackSpeed)
+    ? storedPlaybackSpeed
+    : DEFAULT_PLAYBACK_SPEED;
 }

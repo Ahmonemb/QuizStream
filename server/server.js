@@ -102,6 +102,20 @@ function parseClockTimeToSeconds(value) {
   return Number.NaN;
 }
 
+function parseSummaryTimeToSeconds(value) {
+  if (typeof value !== "string") {
+    return Number.NaN;
+  }
+
+  const trimmed = value.trim().toLowerCase();
+  const secondsMatch = trimmed.match(/^(\d+(?:\.\d+)?)\s*s$/);
+  if (secondsMatch) {
+    return Number(secondsMatch[1]);
+  }
+
+  return parseClockTimeToSeconds(trimmed);
+}
+
 function extractTimelineAnchorsFromSummary(summaryText, offsetSeconds = 5) {
   const normalizedSummary = toSummaryText(summaryText);
   const anchorTimes = [];
@@ -127,6 +141,43 @@ function extractTimelineAnchorsFromSummary(summaryText, offsetSeconds = 5) {
   }
 
   return anchorTimes;
+}
+
+function extractTimelineAnchorsFromTimestampSummary(
+  summaryText,
+  offsetSeconds = 25,
+) {
+  const normalizedSummary = toSummaryText(summaryText);
+  const anchorTimes = [];
+  const seen = new Set();
+  const intervalPatterns = [
+    /(\d+(?:\.\d+)?)\s*s\s*[-–—]\s*(\d+(?:\.\d+)?)\s*s/gi,
+    /(\d{1,2}:\d{2}(?::\d{2})?)\s*[-–—]\s*(\d{1,2}:\d{2}(?::\d{2})?)/g,
+  ];
+
+  for (const intervalPattern of intervalPatterns) {
+    let match;
+
+    while ((match = intervalPattern.exec(normalizedSummary)) !== null) {
+      const endSeconds = parseSummaryTimeToSeconds(match[2]);
+      if (!Number.isFinite(endSeconds)) {
+        continue;
+      }
+
+      const derivedSeconds = Math.max(
+        0,
+        Math.round(endSeconds + offsetSeconds),
+      );
+      if (seen.has(derivedSeconds)) {
+        continue;
+      }
+
+      seen.add(derivedSeconds);
+      anchorTimes.push(derivedSeconds);
+    }
+  }
+
+  return anchorTimes.sort((left, right) => left - right);
 }
 
 const VALID_CHECKPOINT_STATUSES = new Set([
@@ -567,7 +618,10 @@ async function processWithGemini(twelveLabsSummary, userPrompt, questionCount) {
   try {
     const model = genAI.getGenerativeModel({ model: "gemini-3-flash-preview" });
     const summaryText = toSummaryText(twelveLabsSummary);
-    const timelineAnchors = extractTimelineAnchorsFromSummary(summaryText, 5);
+    const timelineAnchors = extractTimelineAnchorsFromTimestampSummary(
+      summaryText,
+      25,
+    );
 
     if (timelineAnchors.length > 0) {
       console.log(
