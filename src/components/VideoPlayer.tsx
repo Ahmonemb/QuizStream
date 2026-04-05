@@ -196,9 +196,26 @@ const VideoPlayer = ({
   };
 
   return (
+<<<<<<< HEAD
     <div ref={containerRef} className="relative w-full overflow-hidden rounded-xl bg-foreground/95 card-shadow" onMouseMove={revealFullscreenControls}>
       <div className="group relative aspect-video cursor-pointer overflow-hidden bg-black" onClick={handlePlayPause}>
         {videoUrl || videoId ? (
+=======
+    <div
+      ref={containerRef}
+      className={`relative w-full rounded-xl bg-foreground/95 card-shadow ${
+        hasOverlay && !isFullscreen ? "overflow-visible" : "overflow-hidden"
+      } ${isFullscreen ? "flex h-full flex-col justify-center bg-black" : ""}`}
+      onMouseMove={revealFullscreenControls}
+    >
+      <div
+        className={`group relative cursor-pointer overflow-hidden bg-black ${
+          isFullscreen ? "flex-1" : "aspect-video"
+        }`}
+        onClick={handlePlayPause}
+      >
+        {videoUrl ? (
+>>>>>>> origin
           <video
             ref={videoRef}
             src={videoUrl || `http://localhost:5001/api/video/${videoId}`}
@@ -335,6 +352,12 @@ const VideoPlayer = ({
           </div>
         </div>
       </div>
+
+      {overlay && (
+        <div className="absolute inset-0 z-40 flex items-center justify-center">
+          {overlay}
+        </div>
+      )}
     </div>
   );
 };
