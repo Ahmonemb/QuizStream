@@ -98,9 +98,7 @@ export const formatDurationLabel = (seconds: number) => {
     return "Duration pending";
   }
 
-  const minutes = Math.floor(seconds / 60);
-  const remainingSeconds = Math.floor(seconds % 60);
-  return `${minutes}m ${remainingSeconds.toString().padStart(2, "0")}s`;
+  return `${Math.round(seconds)}s`;
 };
 
 export function createPersonalizedCheckpoints(
@@ -130,7 +128,7 @@ export function createPersonalizedCheckpoints(
 
     return {
       id: `${course.id}-${questionTypeId}-${index + 1}`,
-      time: Math.max(Math.round(safeDuration * ratio), safeDuration + 10),
+      time: Math.max(Math.round(safeDuration * ratio), safeDuration + 25),
       label: `${profile.label} ${index + 1}`,
       question: applyQuestionOptions(profile.question(course.title), quizSetup),
       options: profile.options(course.title),

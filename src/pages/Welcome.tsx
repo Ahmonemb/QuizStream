@@ -1,7 +1,13 @@
 import { useState, type FormEvent } from "react";
 import { GraduationCap } from "lucide-react";
 import { Navigate, useNavigate } from "react-router-dom";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useAppState } from "@/context/AppStateContext";
@@ -51,34 +57,54 @@ const Welcome = () => {
             <GraduationCap className="h-7 w-7 text-primary" />
           </div>
           <div className="space-y-1">
-            <p className="text-sm font-semibold uppercase tracking-[0.28em] text-primary">QuizStream</p>
-            <CardTitle className="text-3xl">Create your learning profile</CardTitle>
+            <p className="text-sm font-semibold uppercase tracking-[0.28em] text-primary">
+              QuizStream
+            </p>
+            <CardTitle className="text-3xl">
+              Create your learning profile
+            </CardTitle>
             <CardDescription className="text-sm">
-              Set up a lightweight profile so QuizStream can personalize your lesson library and study flow.
+              Set up a profile so QuizStream can personalize your lesson library
+              and study flow.
             </CardDescription>
           </div>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-1.5">
-              <label htmlFor="name" className="text-sm font-medium text-foreground">
+              <label
+                htmlFor="name"
+                className="text-sm font-medium text-foreground"
+              >
                 Full name
               </label>
               <Input
                 id="name"
                 value={formValues.name}
                 onChange={(event) => {
-                  setFormValues((previous) => ({ ...previous, name: event.target.value }));
+                  setFormValues((previous) => ({
+                    ...previous,
+                    name: event.target.value,
+                  }));
                   setErrors((previous) => ({ ...previous, name: undefined }));
                 }}
-                placeholder="Jordan Lee"
-                className={errors.name ? "border-destructive focus-visible:ring-destructive" : ""}
+                placeholder="John Doe"
+                className={
+                  errors.name
+                    ? "border-destructive focus-visible:ring-destructive"
+                    : ""
+                }
               />
-              {errors.name && <p className="text-sm text-destructive">{errors.name}</p>}
+              {errors.name && (
+                <p className="text-sm text-destructive">{errors.name}</p>
+              )}
             </div>
 
             <div className="space-y-1.5">
-              <label htmlFor="email" className="text-sm font-medium text-foreground">
+              <label
+                htmlFor="email"
+                className="text-sm font-medium text-foreground"
+              >
                 Email
               </label>
               <Input
@@ -86,13 +112,22 @@ const Welcome = () => {
                 type="email"
                 value={formValues.email}
                 onChange={(event) => {
-                  setFormValues((previous) => ({ ...previous, email: event.target.value }));
+                  setFormValues((previous) => ({
+                    ...previous,
+                    email: event.target.value,
+                  }));
                   setErrors((previous) => ({ ...previous, email: undefined }));
                 }}
-                placeholder="jordan@quizstream.app"
-                className={errors.email ? "border-destructive focus-visible:ring-destructive" : ""}
+                placeholder="example@quizstream.app"
+                className={
+                  errors.email
+                    ? "border-destructive focus-visible:ring-destructive"
+                    : ""
+                }
               />
-              {errors.email && <p className="text-sm text-destructive">{errors.email}</p>}
+              {errors.email && (
+                <p className="text-sm text-destructive">{errors.email}</p>
+              )}
             </div>
 
             <Button type="submit" className="w-full rounded-xl">
@@ -100,7 +135,8 @@ const Welcome = () => {
             </Button>
 
             <p className="text-center text-xs text-muted-foreground">
-              Prototype only. Your profile is saved locally in this browser so you can jump back in quickly.
+              Prototype only. Your profile is saved locally in this browser so
+              you can jump back in quickly.
             </p>
           </form>
         </CardContent>

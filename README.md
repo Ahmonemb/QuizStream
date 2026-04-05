@@ -1,8 +1,30 @@
 # QuizStream
 
-Prototype flow for uploading local MP4 files and playing them inside the Courses tab.
+AI-powered video analysis and quiz generation using TwelveLabs and Google Gemini.
 
-## Local setup
+## Features
+
+- Upload and process videos
+- AI video understanding with TwelveLabs
+- Generate quizzes using Gemini
+
+## Tech Stack
+
+- Backend: Node.js, Express
+- AI APIs: TwelveLabs, Google Gemini
+
+## Environment Variables
+
+Create a `.env` file in the project root:
+
+```env
+TWELVE_LABS_API_KEY=your_key
+TWELVE_LABS_INDEX_ID=your_index_id
+GOOGLE_GEMINI_API_KEY=your_key
+PORT=5001
+```
+
+## Getting Started
 
 Install dependencies:
 
@@ -10,21 +32,27 @@ Install dependencies:
 npm install
 ```
 
-Run the backend API in one terminal:
+Start the frontend:
 
 ```bash
-npm run server
+npm run start
 ```
 
-Run the frontend in another terminal:
+Or run the Vite dev server:
 
 ```bash
 npm run dev
 ```
 
+Start the backend API in a separate terminal:
+
+```bash
+npm run server
+```
+
 Open `http://localhost:8080/courses`.
 
-## Prototype details
+## Project Details
 
 - Backend runs on `http://localhost:5001`
 - Frontend dev server runs on `http://localhost:8080`
@@ -32,7 +60,7 @@ Open `http://localhost:8080/courses`.
 - Uploaded MP4 files are stored locally in `/uploads`
 - Video metadata and quiz data are stored in `server/database.json`
 
-## API endpoints
+## API Endpoints
 
 - `POST /api/upload-video` with multipart form field `video`
 - `GET /api/videos`

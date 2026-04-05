@@ -36,30 +36,54 @@ const sessionQuestionTypes = [
     label: "Checkpoint Quiz",
     description: "Pause at key concepts with a quick multiple-choice check",
     icon: Brain,
+    available: true,
   },
   {
     id: "reflection",
     label: "Short Reflection",
     description: "Capture a one-sentence takeaway after a segment",
     icon: PenLine,
+    available: false,
   },
   {
     id: "ordering",
     label: "Sequence Recall",
     description: "Rebuild a process or model in the correct order",
     icon: ListOrdered,
+    available: false,
   },
   {
     id: "truefalse",
     label: "True or False",
     description: "Use fast confidence checks between explanations",
     icon: CheckCircle2,
+    available: false,
   },
   {
     id: "term-recall",
     label: "Key Term Recall",
     description: "Prompt learners to complete an important definition",
     icon: FileText,
+    available: false,
+  },
+];
+
+const sessionOptionItems = [
+  {
+    key: "explanations" as const,
+    label: "Include coach explanations",
+  },
+  {
+    key: "hints" as const,
+    label: "Offer a hint before reveal",
+  },
+  {
+    key: "queueReview" as const,
+    label: "Queue spaced review",
+  },
+  {
+    key: "allowRetakes" as const,
+    label: "Allow one retry",
   },
 ];
 
@@ -101,6 +125,11 @@ const AddCourseModal = ({
   const firstName = user?.name.split(" ")[0] ?? "there";
 
   const toggleQuestionType = (id: string) => {
+    const selectedType = sessionQuestionTypes.find((type) => type.id === id);
+    if (!selectedType?.available) {
+      return;
+    }
+
     setSelectedQuestionTypes((previousTypes) => {
       const nextTypes = new Set(previousTypes);
       if (nextTypes.has(id)) {
@@ -185,14 +214,6 @@ const AddCourseModal = ({
     }
   };
 
-  // ... (Keep handleDrop, handleFileSelect, resetForm, and toggleSessionOption from your code)
-  const toggleSessionOption = (key: keyof typeof sessionOptions) => {
-    setSessionOptions((previousOptions) => ({
-      ...previousOptions,
-      [key]: !previousOptions[key],
-    }));
-  };
-
   const handleDrop = (event: DragEvent<HTMLDivElement>) => {
     event.preventDefault();
     setIsDragging(false);
@@ -274,25 +295,51 @@ const AddCourseModal = ({
 
             {/* Question Mix & Target Sliders (Keep your existing UI) */}
             <div className="space-y-3">
-              <div className="flex items-center gap-2">
-                <Sparkles className="h-5 w-5 text-tertiary" />
-                <h2 className="text-base font-semibold text-foreground">
-                  Question mix
-                </h2>
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <Sparkles className="h-5 w-5 text-tertiary" />
+                  <h2 className="text-base font-semibold text-foreground">
+                    Question mix
+                  </h2>
+                </div>
+                <span className="rounded-full border border-border bg-muted px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                  More types in development
+                </span>
               </div>
               <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
                 {sessionQuestionTypes.map((type) => (
                   <button
                     key={type.id}
+                    type="button"
                     onClick={() => toggleQuestionType(type.id)}
+                    disabled={!type.available}
                     className={`rounded-xl border p-3 text-left transition-all ${
                       selectedQuestionTypes.has(type.id)
                         ? "border-primary bg-accent ring-1 ring-primary/20"
-                        : "border-border hover:border-primary/40"
+                        : type.available
+                          ? "border-border hover:border-primary/40"
+                          : "cursor-not-allowed border-border/70 bg-muted/30 opacity-60"
                     }`}
                   >
-                    <type.icon className="mb-1.5 h-4 w-4 text-primary" />
-                    <p className="text-sm font-semibold">{type.label}</p>
+                    <div className="mb-1.5 flex items-center justify-between gap-3">
+                      <type.icon
+                        className={`h-4 w-4 ${
+                          type.available ? "text-primary" : "text-muted-foreground"
+                        }`}
+                      />
+                      {!type.available && (
+                        <span className="rounded-full border border-border bg-background/80 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                          Future feature
+                        </span>
+                      )}
+                    </div>
+                    <p
+                      className={`text-sm font-semibold ${
+                        type.available ? "text-foreground" : "text-muted-foreground"
+                      }`}
+                    >
+                      {type.label}
+                    </p>
                     <p className="mt-0.5 text-[11px] leading-4 text-muted-foreground">
                       {type.description}
                     </p>
@@ -320,29 +367,33 @@ const AddCourseModal = ({
 
             {/* Options List (Keep your existing UI) */}
             <div className="space-y-3.5">
-              <div className="flex items-center gap-2">
-                <Sparkles className="h-5 w-5 text-warning" />
-                <h2 className="text-base font-semibold text-foreground">
-                  Session options
-                </h2>
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <Sparkles className="h-5 w-5 text-warning" />
+                  <h2 className="text-base font-semibold text-foreground">
+                    Session options
+                  </h2>
+                </div>
+                <span className="rounded-full border border-border bg-muted px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                  Currently developing
+                </span>
               </div>
-              {[
-                {
-                  key: "explanations" as const,
-                  label: "Include coach explanations",
-                },
-                { key: "hints" as const, label: "Offer a hint before reveal" },
-                { key: "queueReview" as const, label: "Queue spaced review" },
-                { key: "allowRetakes" as const, label: "Allow one retry" },
-              ].map((opt) => (
+              {sessionOptionItems.map((opt) => (
                 <div
                   key={opt.key}
-                  className="flex items-center justify-between gap-4 py-0.5"
+                  className="flex items-center justify-between gap-4 rounded-xl border border-border/70 bg-muted/30 px-3 py-2.5 opacity-60"
                 >
-                  <Label className="text-sm font-medium">{opt.label}</Label>
+                  <div className="flex flex-col">
+                    <Label className="text-sm font-medium text-muted-foreground">
+                      {opt.label}
+                    </Label>
+                    <span className="text-[11px] text-muted-foreground">
+                      Future feature
+                    </span>
+                  </div>
                   <Switch
                     checked={sessionOptions[opt.key]}
-                    onCheckedChange={() => toggleSessionOption(opt.key)}
+                    disabled
                   />
                 </div>
               ))}
