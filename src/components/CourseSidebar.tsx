@@ -1,14 +1,18 @@
+import type { ElementType } from "react";
 import {
   Home,
   BookOpen,
   BarChart3,
   Settings,
   GraduationCap,
+  LogOut,
 } from "lucide-react";
-import { navItems } from "@/data/courseData";
-import { useLocation, Link } from "react-router-dom";
+import { useLocation, Link, useNavigate } from "react-router-dom";
+import { Button } from "@/components/ui/button";
+import { useAppState } from "@/context/AppStateContext";
+import { navItems } from "@/lib/navigation";
 
-const iconMap: Record<string, React.ElementType> = {
+const iconMap: Record<string, ElementType> = {
   Home,
   BookOpen,
   BarChart3,
@@ -17,25 +21,33 @@ const iconMap: Record<string, React.ElementType> = {
 
 const CourseSidebar = () => {
   const location = useLocation();
+  const navigate = useNavigate();
+  const { user, logout } = useAppState();
+
+  const handleLogout = () => {
+    logout();
+    navigate("/welcome", { replace: true });
+  };
 
   return (
-    <aside className="hidden lg:flex flex-col w-60 bg-card border-r border-border h-screen sticky top-0 shrink-0">
-      <div className="flex items-center gap-2 px-6 py-5 border-b border-border">
+    <aside className="sticky top-0 hidden h-screen w-60 shrink-0 flex-col border-r border-border bg-card lg:flex">
+      <div className="flex items-center gap-2 border-b border-border px-6 py-5">
         <GraduationCap className="h-7 w-7 text-primary" />
-        <span className="text-lg font-bold text-foreground">LearnHub</span>
+        <span className="text-lg font-bold text-foreground">QuizStream</span>
       </div>
 
-      <nav className="flex-1 py-4 px-3 space-y-1">
+      <nav className="flex-1 space-y-1 px-3 py-4">
         {navItems.map((item) => {
           const Icon = iconMap[item.icon] || Home;
           const isActive = location.pathname === item.path;
+
           return (
             <Link
               key={item.id}
               to={item.path}
-              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+              className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
                 isActive
-                  ? "bg-accent text-accent-foreground border-l-4 border-primary pl-2"
+                  ? "border-l-4 border-primary bg-accent pl-2 text-accent-foreground"
                   : "text-muted-foreground hover:bg-muted"
               }`}
             >
@@ -46,15 +58,25 @@ const CourseSidebar = () => {
         })}
       </nav>
 
-      <div className="p-4 border-t border-border">
-        <div className="flex items-center gap-3">
-          <div className="h-9 w-9 rounded-full bg-primary flex items-center justify-center text-primary-foreground text-sm font-semibold">
-            JS
+      <div className="border-t border-border p-4">
+        <div className="flex items-center gap-3 rounded-2xl bg-muted/40 px-3 py-2.5">
+          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary text-sm font-semibold text-primary-foreground">
+            {user?.initials ?? "QS"}
           </div>
-          <div className="text-sm">
-            <p className="font-medium text-foreground">Jane Smith</p>
-            <p className="text-muted-foreground text-xs">Free Plan</p>
+          <div className="min-w-0 flex-1 text-sm">
+            <p className="truncate font-medium text-foreground">{user?.name ?? "QuizStream"}</p>
+            <p className="truncate text-xs text-muted-foreground">{user?.plan ?? "Personal Workspace"}</p>
           </div>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            onClick={handleLogout}
+            className="h-8 w-8 shrink-0 rounded-full text-muted-foreground hover:bg-background hover:text-foreground"
+            aria-label="Sign out"
+          >
+            <LogOut className="h-4 w-4" />
+          </Button>
         </div>
       </div>
     </aside>

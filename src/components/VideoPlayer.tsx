@@ -11,6 +11,8 @@ interface VideoPlayerProps {
   onCheckpointStatusChange?: (updatedCheckpoints: Checkpoint[]) => void; // NEW
 }
 
+const FULLSCREEN_CONTROLS_TIMEOUT_MS = 2200;
+
 const VideoPlayer = ({
   videoId,
   lessonTitle,
@@ -241,6 +243,18 @@ const VideoPlayer = ({
             </div>
           </div>
         )}
+
+        {videoError && (
+          <div className="absolute inset-x-4 bottom-4 rounded-lg border border-destructive/40 bg-background/95 px-4 py-3 text-sm text-destructive shadow-lg">
+            {videoError}
+          </div>
+        )}
+
+        {overlay && (
+          <div className="absolute inset-0 z-40 flex items-center justify-center">
+            {overlay}
+          </div>
+        )}
       </div>
 
       {/* TIMELINE & CONTROLS (Untouched) */}
@@ -267,7 +281,7 @@ const VideoPlayer = ({
             <div className="absolute -top-12 -translate-x-1/2 bg-foreground text-background text-xs px-3 py-1.5 rounded-lg whitespace-nowrap z-20" style={{ left: `${tooltipPosition}%` }}>
               <span className="font-medium">{hoveredCheckpoint.label}</span>
               <span className="ml-2 opacity-70">{formatTime(hoveredCheckpoint.time)}</span>
-              <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2 rotate-45 h-2 w-2 bg-foreground" />
+              <div className="absolute bottom-0 left-1/2 h-2 w-2 -translate-x-1/2 translate-y-1/2 rotate-45 bg-foreground" />
             </div>
           )}
         </div>
@@ -280,10 +294,23 @@ const VideoPlayer = ({
             <button onClick={() => { if(videoRef.current) { videoRef.current.muted = !isMuted; setIsMuted(!isMuted); } }} className="text-foreground hover:text-primary transition-colors">
               {isMuted ? <VolumeX className="h-5 w-5" /> : <Volume2 className="h-5 w-5" />}
             </button>
-            <span className="text-sm text-muted-foreground font-mono">
+
+            <input
+              type="range"
+              min="0"
+              max="100"
+              value={isMuted ? 0 : Math.round(volume * 100)}
+              onChange={handleVolumeChange}
+              disabled={!videoUrl}
+              className="h-2 w-28 cursor-pointer accent-primary disabled:cursor-not-allowed disabled:opacity-40"
+              aria-label="Volume"
+            />
+
+            <span className="font-mono text-sm text-muted-foreground">
               {formatTime(currentTime)} / {formatTime(duration)}
             </span>
           </div>
+
           <div className="flex items-center gap-3">
             <button className="text-foreground hover:text-primary transition-colors">
               <Settings className="h-5 w-5" />

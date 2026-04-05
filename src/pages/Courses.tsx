@@ -1,27 +1,78 @@
-import { useState, useEffect } from "react";
-import { useParams, useLocation } from "react-router-dom";
+import { useEffect, useState } from "react";
+import {
+  ArrowLeft,
+  Loader2,
+  Plus,
+  RefreshCw,
+  Share2,
+  Tag,
+  Trash2,
+  Video,
+} from "lucide-react";
+import AddCourseModal from "@/components/AddCourseModal";
 import VideoPlayer from "@/components/VideoPlayer";
 import ProgressPanel from "@/components/ProgressPanel";
-import TranscriptTabs from "@/components/TranscriptTabs";
-import { featuredCourse, Checkpoint } from "@/data/courseData";
-import { Share2, Tag, Loader2, AlertCircle } from "lucide-react";
+import { Checkpoint } from "@/lib/app-types";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { useAppState } from "@/context/AppStateContext";
+import {
+  buildCoursePresentation,
+  createPersonalizedCheckpoints,
+  formatUploadDate,
+} from "@/lib/coursePresentation";
 
-// The shape of the data coming from your Node backend
-interface QuizResponse {
-  videoId: string;
-  fileName: string;
-  quizzes: {
-    time: number;
-    question: string;
-    answers: string[];
-    correct: number;
-  }[];
-  uploadedAt: string;
-}
+const syncCheckpointState = (previousCheckpoints: Checkpoint[], nextCheckpoints: Checkpoint[]) => {
+  const statusMap = new Map(previousCheckpoints.map((checkpoint) => [checkpoint.id, checkpoint.status]));
+
+  return nextCheckpoints.map((checkpoint) => ({
+    ...checkpoint,
+    status: statusMap.get(checkpoint.id) ?? checkpoint.status,
+  }));
+};
+
+const updateCheckpointQueue = (checkpoints: Checkpoint[]) => {
+  const nextPendingCheckpoint = checkpoints.find(
+    (checkpoint) => checkpoint.status !== "completed" && checkpoint.status !== "incorrect",
+  );
+
+  return checkpoints.map((checkpoint) => {
+    if (checkpoint.status === "completed" || checkpoint.status === "incorrect") {
+      return checkpoint;
+    }
+
+    return {
+      ...checkpoint,
+      status: checkpoint.id === nextPendingCheckpoint?.id ? "active" : "upcoming",
+    };
+  });
+};
 
 const Courses = () => {
-  const { videoId } = useParams<{ videoId: string }>();
-  const location = useLocation();
+  const {
+    user,
+    courses,
+    selectedCourse,
+    selectedCourseId,
+    isLoadingCourses,
+    coursesError,
+    selectCourse,
+    refreshCourses,
+    deleteCourse,
+  } = useAppState();
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [sessionCheckpoints, setSessionCheckpoints] = useState<Checkpoint[]>([]);
+  const [activeQuiz, setActiveQuiz] = useState<Checkpoint | null>(null);
+  const [triggeredCheckpointIds, setTriggeredCheckpointIds] = useState<Set<string>>(new Set());
+  const [isAddCourseOpen, setIsAddCourseOpen] = useState(false);
+  const [isLibraryView, setIsLibraryView] = useState(true);
+  const [deletingCourseId, setDeletingCourseId] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+
+  const firstName = user?.name.split(" ")[0] ?? "there";
+  const coursePresentation = buildCoursePresentation(selectedCourse, user, duration);
 
   // --- Real State ---
   const [loading, setLoading] = useState(true);
@@ -34,129 +85,299 @@ const Courses = () => {
 
   // Fetch the AI data on mount
   useEffect(() => {
-    const fetchCourseData = async () => {
-      if (!videoId) return;
+    if (courses.length === 0) {
+      setIsLibraryView(true);
+    }
+  }, [courses.length]);
 
-      try {
-        const res = await fetch(`http://localhost:5001/api/quiz/${videoId}`);
-        if (!res.ok) throw new Error("Failed to load course data");
+  useEffect(() => {
+    setCurrentTime(0);
+    setDuration(0);
+    setIsPlaying(false);
+    setActiveQuiz(null);
+    setTriggeredCheckpointIds(new Set());
+    setSessionCheckpoints(createPersonalizedCheckpoints(selectedCourse));
+  }, [selectedCourse?.id]);
 
-        const data: QuizResponse = await res.json();
-        if (data.fileName) setFileName(data.fileName);
+  useEffect(() => {
+    if (!selectedCourse || duration <= 0) {
+      return;
+    }
 
-        // Map AI quizzes to your dashboard's Checkpoint format
-        if (data.quizzes) {
-          const mappedCheckpoints: Checkpoint[] = data.quizzes.map((q, idx) => ({
-            id: `quiz-${idx}`,
-            time: q.time,
-            label: `Question ${idx + 1}`,
-            question: q.question,
-            options: q.answers,
-            correctIndex: q.correct,
-            status: "upcoming"
-          }));
-          setSessionCheckpoints(mappedCheckpoints);
-        }
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Unknown error");
-      } finally {
-        setLoading(false);
+    setSessionCheckpoints((previousCheckpoints) =>
+      syncCheckpointState(previousCheckpoints, createPersonalizedCheckpoints(selectedCourse, duration)),
+    );
+  }, [duration, selectedCourse]);
+
+  useEffect(() => {
+    if (activeQuiz) {
+      return;
+    }
+
+    const nextCheckpoint = sessionCheckpoints.find(
+      (checkpoint) =>
+        Math.abs(currentTime - checkpoint.time) < 1 &&
+        !triggeredCheckpointIds.has(checkpoint.id) &&
+        checkpoint.status !== "completed" &&
+        checkpoint.status !== "incorrect",
+    );
+
+    if (nextCheckpoint) {
+      setIsPlaying(false);
+      setActiveQuiz(nextCheckpoint);
+      setTriggeredCheckpointIds((previousIds) => new Set(previousIds).add(nextCheckpoint.id));
+    }
+  }, [activeQuiz, currentTime, sessionCheckpoints, triggeredCheckpointIds]);
+
+  const handleQuizClose = (correct: boolean) => {
+    if (!activeQuiz) {
+      return;
+    }
+
+    setSessionCheckpoints((previousCheckpoints) =>
+      updateCheckpointQueue(
+        previousCheckpoints.map((checkpoint) =>
+          checkpoint.id === activeQuiz.id
+            ? { ...checkpoint, status: correct ? "completed" : "incorrect" }
+            : checkpoint,
+        ),
+      ),
+    );
+    setActiveQuiz(null);
+    setIsPlaying(true);
+  };
+
+  const handleSelectCourse = (courseId: string) => {
+    setActionError(null);
+    selectCourse(courseId);
+    setIsLibraryView(false);
+  };
+
+  const handleDeleteCourse = async (courseId: string) => {
+    setDeletingCourseId(courseId);
+    setActionError(null);
+
+    try {
+      await deleteCourse(courseId);
+
+      if (selectedCourseId === courseId) {
+        setIsLibraryView(true);
       }
-    };
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : "Unable to delete this course.");
+    } finally {
+      setDeletingCourseId(null);
+    }
+  };
 
-    fetchCourseData();
-  }, [videoId]);
-
-
-  // Calculate stats for the ProgressPanel
-  const correctCount = sessionCheckpoints.filter((cp) => cp.status === "completed").length;
-  const answeredCount = sessionCheckpoints.filter(
-    (cp) => cp.status === "completed" || cp.status === "incorrect"
+  const correctCheckpointCount = sessionCheckpoints.filter((checkpoint) => checkpoint.status === "completed").length;
+  const answeredCheckpointCount = sessionCheckpoints.filter(
+    (checkpoint) => checkpoint.status === "completed" || checkpoint.status === "incorrect",
   ).length;
-  const accuracy = answeredCount > 0 ? Math.round((correctCount / answeredCount) * 100) : 0;
-
-  // --- Loading / Error States ---
-  if (!videoId) return <div className="p-8 text-center text-destructive font-semibold">No video ID provided in URL.</div>;
-  if (loading) return (
-    <div className="flex-1 flex flex-col items-center justify-center min-h-[50vh] text-muted-foreground gap-3">
-      <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      <p>Loading your AI interactive session...</p>
-    </div>
-  );
-  if (error) return (
-    <div className="flex-1 flex flex-col items-center justify-center min-h-[50vh] text-destructive gap-3">
-      <AlertCircle className="h-8 w-8" />
-      <p>Error: {error}</p>
-    </div>
-  );
+  const accuracy =
+    answeredCheckpointCount > 0
+      ? Math.round((correctCheckpointCount / answeredCheckpointCount) * 100)
+      : 0;
+  const showPlayerView = !isLibraryView && Boolean(selectedCourse && coursePresentation);
 
   return (
-    <div className="flex flex-1 min-w-0">
-      <div className="flex-1 min-w-0 pb-20 lg:pb-0">
-        <div className="max-w-[960px] mx-auto px-4 py-6 lg:px-8">
-          
-          <div className="mb-5">
-            <p className="text-xs font-semibold uppercase tracking-wider text-primary mb-1">
-              {featuredCourse.moduleLabel}
-            </p>
-            <h1 className="text-2xl font-bold text-foreground">{fileName}</h1>
-            <p className="text-sm text-muted-foreground mt-1">
-              AI-Generated Interactive Session
-            </p>
+    <>
+      <div className="flex min-w-0 flex-1">
+        <div className="min-w-0 flex-1 pb-20 lg:pb-0">
+          <div className="mx-auto max-w-[960px] px-4 py-6 lg:px-8">
+            {showPlayerView && selectedCourse && coursePresentation ? (
+              <>
+                <div className="mb-5">
+                  <Button variant="outline" onClick={() => setIsLibraryView(true)} className="rounded-xl">
+                    <ArrowLeft className="h-4 w-4" />
+                    Back to library
+                  </Button>
+                </div>
+
+                <VideoPlayer
+                  lessonTitle={selectedCourse.title}
+                  lessonSubtitle={coursePresentation.moduleTitle}
+                  videoUrl={selectedCourse.videoUrl}
+                  currentTime={currentTime}
+                  duration={duration}
+                  isPlaying={isPlaying}
+                  checkpoints={sessionCheckpoints}
+                  overlay={
+                    activeQuiz ? <QuizModal checkpoint={activeQuiz} onClose={handleQuizClose} /> : null
+                  }
+                  onTimeUpdate={setCurrentTime}
+                  onDurationChange={setDuration}
+                  onPlayingChange={setIsPlaying}
+                />
+
+                <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div>
+                    <h2 className="text-lg font-semibold text-foreground">{coursePresentation.moduleTitle}</h2>
+                    <p className="mt-0.5 text-sm text-muted-foreground">
+                      {coursePresentation.instructor} / {coursePresentation.courseCode} / {coursePresentation.durationLabel} / Uploaded {formatUploadDate(selectedCourse.uploadedAt)}
+                    </p>
+                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                      {coursePresentation.tags.map((tag) => (
+                        <span
+                          key={tag}
+                          className="inline-flex items-center gap-1 rounded-full bg-accent px-2.5 py-0.5 text-xs font-medium text-accent-foreground"
+                        >
+                          <Tag className="h-3 w-3" />
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                  <button className="inline-flex shrink-0 items-center gap-2 rounded-xl border border-border px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-muted/50">
+                    <Share2 className="h-4 w-4" />
+                    Share Session
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                  <div>
+                    <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-primary">Course Library</p>
+                    <h1 className="text-2xl font-bold text-foreground">
+                      {courses.length > 0 ? `${firstName}'s courses` : `Start ${firstName}'s library`}
+                    </h1>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      {courses.length > 0
+                        ? "Select a course to open it in the player, or add a new MP4 with a custom quiz setup."
+                        : "There are no courses yet. Add an MP4 to create the first playable lesson in this workspace."}
+                    </p>
+                  </div>
+
+                  <Button onClick={() => setIsAddCourseOpen(true)} className="rounded-xl">
+                    <Plus className="h-4 w-4" />
+                    Add course
+                  </Button>
+                </div>
+
+                <Card className="mb-5 card-shadow">
+                  <CardHeader className="pb-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <CardTitle className="flex items-center gap-2 text-base">
+                          <Video className="h-4 w-4 text-secondary" />
+                          Course Library
+                        </CardTitle>
+                        <CardDescription>
+                          Uploaded lessons appear here automatically after they are created from the add-course modal.
+                        </CardDescription>
+                      </div>
+                      {coursesError && (
+                        <Button variant="outline" size="sm" onClick={() => void refreshCourses()}>
+                          <RefreshCw className="h-4 w-4" />
+                          Retry
+                        </Button>
+                      )}
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    {actionError && (
+                      <div className="rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+                        {actionError}
+                      </div>
+                    )}
+                    {isLoadingCourses ? (
+                      <div className="rounded-xl border border-dashed border-border px-4 py-8 text-sm text-muted-foreground">
+                        Loading course library...
+                      </div>
+                    ) : coursesError ? (
+                      <div className="rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-6 text-sm text-destructive">
+                        {coursesError}
+                      </div>
+                    ) : courses.length === 0 ? (
+                      <div className="flex flex-col items-center justify-center gap-4 rounded-2xl border border-dashed border-border px-6 py-12 text-center">
+                        <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10">
+                          <Video className="h-7 w-7 text-primary" />
+                        </div>
+                        <div className="space-y-1">
+                          <p className="text-sm font-semibold text-foreground">Your course library is empty</p>
+                          <p className="text-sm text-muted-foreground">
+                            Add an MP4 to create a new course, save its quiz setup, and make it available in the player.
+                          </p>
+                        </div>
+                        <Button onClick={() => setIsAddCourseOpen(true)} className="rounded-xl">
+                          <Plus className="h-4 w-4" />
+                          Add your first course
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        {courses.map((course) => {
+                          const isDeleting = deletingCourseId === course.id;
+
+                          return (
+                            <div
+                              key={course.id}
+                              className="rounded-xl border border-border p-4 transition-colors hover:bg-muted/40"
+                            >
+                              <div className="flex items-start justify-between gap-3">
+                                <button
+                                  type="button"
+                                  onClick={() => handleSelectCourse(course.id)}
+                                  className="min-w-0 flex-1 text-left"
+                                >
+                                  <p className="truncate text-sm font-medium text-foreground">{course.title}</p>
+                                  <p className="mt-1 truncate text-xs text-muted-foreground">{course.filename}</p>
+                                </button>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={(event) => {
+                                    event.stopPropagation();
+                                    void handleDeleteCourse(course.id);
+                                  }}
+                                  disabled={isDeleting}
+                                  className="h-8 px-2 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                                >
+                                  {isDeleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                                </Button>
+                              </div>
+                              <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                                <span>Uploaded {formatUploadDate(course.uploadedAt)}</span>
+                                <span>/</span>
+                                <span>{course.quizSetup.questionTarget} prompts</span>
+                                <span>/</span>
+                                <span>{course.quizSetup.questionTypes.join(", ")}</span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </>
+            )}
           </div>
-
-          {/* THE REAL VIDEO PLAYER */}
-          <VideoPlayer
-            videoId={videoId}
-            lessonTitle={fileName}
-            lessonSubtitle={`${sessionCheckpoints.length} AI Checkpoints`}
-            checkpoints={sessionCheckpoints}
-            // Pass callbacks down so VideoPlayer can report back to the dashboard!
-            onTimeUpdate={(time) => setCurrentTime(time)}
-            onCheckpointStatusChange={(newCheckpoints) => setSessionCheckpoints(newCheckpoints)}
-          />
-
-          <div className="mt-5 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
-            <div>
-              <h2 className="text-lg font-semibold text-foreground">Session Details</h2>
-              <p className="text-sm text-muted-foreground mt-0.5">
-                {featuredCourse.instructor} • {featuredCourse.courseCode}
-              </p>
-              <div className="flex items-center gap-2 mt-2 flex-wrap">
-                {featuredCourse.tags.map((tag) => (
-                  <span key={tag} className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-accent text-accent-foreground text-xs font-medium">
-                    <Tag className="h-3 w-3" />
-                    {tag}
-                  </span>
-                ))}
-              </div>
-            </div>
-            <button className="shrink-0 inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-border text-sm font-medium text-foreground hover:bg-muted/50 transition-colors">
-              <Share2 className="h-4 w-4" />
-              Share Session
-            </button>
-          </div>
-
-          {/* TRANSCRIPTS: Now syncing with the real HTML5 video time! */}
-          <TranscriptTabs
-            currentTime={currentTime}
-            checkpoints={sessionCheckpoints}
-            // If users click the transcript, it should skip the video (will require passing a ref down eventually)
-            onSeek={setCurrentTime} 
-          />
         </div>
+
+        {showPlayerView && selectedCourse && (
+          <ProgressPanel
+            checkpoints={sessionCheckpoints}
+            accuracy={accuracy}
+            answered={answeredCheckpointCount}
+            currentStreak={correctCheckpointCount}
+            timeWatched={`${Math.floor(currentTime / 60)}m ${Math.floor(currentTime % 60)}s`}
+          />
+        )}
+
       </div>
 
-      {/* PROGRESS PANEL: Now tracking real AI quiz completions! */}
-      <ProgressPanel
-        checkpoints={sessionCheckpoints}
-        accuracy={accuracy}
-        answered={answeredCount}
-        currentStreak={correctCount}
-        timeWatched={`${Math.floor(currentTime / 60)}m ${Math.floor(currentTime % 60)}s`}
+      <AddCourseModal
+        open={isAddCourseOpen}
+        onOpenChange={setIsAddCourseOpen}
+        onCourseCreated={() => {
+          setActionError(null);
+          setIsLibraryView(false);
+        }}
       />
-
-    </div>
+    </>
   );
 };
 

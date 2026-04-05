@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { CheckCircle2, XCircle, X } from "lucide-react";
-import { Checkpoint } from "@/data/courseData";
+import { CheckCircle2, X, XCircle } from "lucide-react";
+import { Checkpoint } from "@/lib/app-types";
 
 interface QuizModalProps {
   checkpoint: Checkpoint;
@@ -14,7 +14,10 @@ const QuizModal = ({ checkpoint, onClose }: QuizModalProps) => {
   const isCorrect = selected === checkpoint.correctIndex;
 
   const handleSubmit = () => {
-    if (selected === null) return;
+    if (selected === null) {
+      return;
+    }
+
     setSubmitted(true);
   };
 
@@ -23,50 +26,66 @@ const QuizModal = ({ checkpoint, onClose }: QuizModalProps) => {
   };
 
   const getOptionClasses = (index: number) => {
-    const base = "w-full p-4 rounded-xl border text-left text-sm font-medium transition-all";
+    const base = "w-full rounded-xl border p-4 text-left text-sm font-medium transition-all";
+
     if (!submitted) {
-      if (selected === index) return `${base} border-primary bg-accent text-accent-foreground`;
-      return `${base} border-border hover:border-primary/50 text-foreground`;
+      if (selected === index) {
+        return `${base} border-primary bg-accent text-accent-foreground`;
+      }
+
+      return `${base} border-border text-foreground hover:border-primary/50`;
     }
-    if (index === checkpoint.correctIndex) return `${base} border-success bg-success/10 text-foreground`;
-    if (selected === index && !isCorrect) return `${base} border-destructive bg-destructive/10 text-foreground`;
+
+    if (index === checkpoint.correctIndex) {
+      return `${base} border-success bg-success/10 text-foreground`;
+    }
+
+    if (selected === index && !isCorrect) {
+      return `${base} border-destructive bg-destructive/10 text-foreground`;
+    }
+
     return `${base} border-border text-muted-foreground`;
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      {/* Overlay */}
-      <div className="absolute inset-0 bg-foreground/50 backdrop-blur-sm" onClick={handleContinue} />
+    <div className="absolute inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
+      <div className="absolute inset-0 bg-foreground/55 backdrop-blur-sm" onClick={handleContinue} />
 
-      {/* Modal */}
-      <div className="relative w-full max-w-[520px] mx-4 bg-card rounded-2xl p-8 animate-modal-in" style={{ boxShadow: "var(--shadow-xl)" }}>
-        <button onClick={handleContinue} className="absolute top-4 right-4 text-muted-foreground hover:text-foreground transition-colors">
+      <div
+        className="relative z-10 w-full max-w-[520px] rounded-2xl bg-card p-6 sm:p-8 animate-modal-in"
+        style={{ boxShadow: "var(--shadow-xl)" }}
+      >
+        <button
+          type="button"
+          onClick={handleContinue}
+          className="absolute right-4 top-4 text-muted-foreground transition-colors hover:text-foreground"
+        >
           <X className="h-5 w-5" />
         </button>
 
-        {/* Badge */}
-        <div className="inline-flex items-center gap-2 bg-tertiary/10 text-tertiary px-3 py-1 rounded-full text-xs font-semibold mb-4">
+        <div className="mb-4 inline-flex items-center gap-2 rounded-full bg-tertiary/10 px-3 py-1 text-xs font-semibold text-tertiary">
           <span className="h-2 w-2 rounded-full bg-tertiary" />
-          Quiz Checkpoint
+          Checkpoint Quiz
         </div>
 
-        <h2 className="text-lg font-semibold text-foreground mb-6">{checkpoint.question}</h2>
+        <h2 className="mb-6 text-lg font-semibold text-foreground">{checkpoint.question}</h2>
 
-        <div className="space-y-3 mb-6">
-          {checkpoint.options.map((option, i) => (
+        <div className="mb-6 space-y-3">
+          {checkpoint.options.map((option, index) => (
             <button
-              key={i}
+              key={option}
+              type="button"
               disabled={submitted}
-              onClick={() => setSelected(i)}
-              className={getOptionClasses(i)}
+              onClick={() => setSelected(index)}
+              className={getOptionClasses(index)}
             >
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between gap-3">
                 <span>{option}</span>
-                {submitted && i === checkpoint.correctIndex && (
-                  <CheckCircle2 className="h-5 w-5 text-success shrink-0" />
+                {submitted && index === checkpoint.correctIndex && (
+                  <CheckCircle2 className="h-5 w-5 shrink-0 text-success" />
                 )}
-                {submitted && selected === i && !isCorrect && i !== checkpoint.correctIndex && (
-                  <XCircle className="h-5 w-5 text-destructive shrink-0" />
+                {submitted && selected === index && !isCorrect && index !== checkpoint.correctIndex && (
+                  <XCircle className="h-5 w-5 shrink-0 text-destructive" />
                 )}
               </div>
             </button>
@@ -75,23 +94,30 @@ const QuizModal = ({ checkpoint, onClose }: QuizModalProps) => {
 
         {!submitted ? (
           <button
+            type="button"
             onClick={handleSubmit}
             disabled={selected === null}
-            className="w-full py-3 rounded-xl bg-primary text-primary-foreground font-semibold text-sm transition-all hover:brightness-110 active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed"
+            className="w-full rounded-xl bg-primary py-3 text-sm font-semibold text-primary-foreground transition-all hover:brightness-110 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40"
           >
             Submit Answer
           </button>
         ) : (
           <div className="space-y-4">
-            <div className={`flex items-center gap-2 p-3 rounded-xl text-sm font-medium ${
-              isCorrect ? "bg-success/10 text-success" : "bg-destructive/10 text-destructive"
-            }`}>
+            <div
+              className={`flex items-center gap-2 rounded-xl p-3 text-sm font-medium ${
+                isCorrect ? "bg-success/10 text-success" : "bg-destructive/10 text-destructive"
+              }`}
+            >
               {isCorrect ? <CheckCircle2 className="h-5 w-5" /> : <XCircle className="h-5 w-5" />}
-              {isCorrect ? "Correct! Great job." : "Not quite. Review this section again."}
+              {isCorrect
+                ? "Correct. The concept is ready for review later."
+                : "Not quite. Keep the idea in mind for the next explanation."}
             </div>
+
             <button
+              type="button"
               onClick={handleContinue}
-              className="w-full py-3 rounded-xl bg-primary text-primary-foreground font-semibold text-sm transition-all hover:brightness-110 active:scale-[0.98]"
+              className="w-full rounded-xl bg-primary py-3 text-sm font-semibold text-primary-foreground transition-all hover:brightness-110 active:scale-[0.98]"
             >
               Continue
             </button>

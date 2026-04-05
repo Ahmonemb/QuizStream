@@ -1,26 +1,27 @@
 import { useState } from "react";
-import { transcriptSegments, Checkpoint } from "@/data/courseData";
+import { Checkpoint, NoteEntry, TranscriptSegment } from "@/lib/app-types";
 
 interface TranscriptTabsProps {
   currentTime: number;
   checkpoints: Checkpoint[];
+  transcriptSegments: TranscriptSegment[];
+  noteEntries: NoteEntry[];
   onSeek: (time: number) => void;
 }
 
 const tabs = ["Transcript", "Notes", "Quiz Review"] as const;
 
-const TranscriptTabs = ({ currentTime, checkpoints, onSeek }: TranscriptTabsProps) => {
+const TranscriptTabs = ({ currentTime, checkpoints, transcriptSegments, noteEntries, onSeek }: TranscriptTabsProps) => {
   const [activeTab, setActiveTab] = useState<(typeof tabs)[number]>("Transcript");
 
-  const formatTime = (s: number) => {
-    const m = Math.floor(s / 60);
-    const sec = Math.floor(s % 60);
-    return `${m}:${sec.toString().padStart(2, "0")}`;
+  const formatTime = (seconds: number) => {
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = Math.floor(seconds % 60);
+    return `${minutes}:${remainingSeconds.toString().padStart(2, "0")}`;
   };
 
   return (
     <div className="mt-5 bg-card rounded-xl card-shadow overflow-hidden">
-      {/* Tab bar */}
       <div className="flex border-b border-border">
         {tabs.map((tab) => (
           <button
@@ -40,53 +41,76 @@ const TranscriptTabs = ({ currentTime, checkpoints, onSeek }: TranscriptTabsProp
         ))}
       </div>
 
-      {/* Content */}
       <div className="p-5 max-h-64 overflow-y-auto">
         {activeTab === "Transcript" && (
           <div className="space-y-1">
-            {transcriptSegments.map((seg, i) => {
-              const nextTime = transcriptSegments[i + 1]?.time ?? Infinity;
-              const isActive = currentTime >= seg.time && currentTime < nextTime;
+            {transcriptSegments.length > 0 ? transcriptSegments.map((segment, index) => {
+              const nextTime = transcriptSegments[index + 1]?.time ?? Infinity;
+              const isActive = currentTime >= segment.time && currentTime < nextTime;
+
               return (
                 <button
-                  key={i}
-                  onClick={() => onSeek(seg.time)}
+                  key={segment.time}
+                  onClick={() => onSeek(segment.time)}
                   className={`w-full text-left flex gap-3 p-2.5 rounded-lg transition-colors ${
                     isActive
                       ? "bg-accent border-l-4 border-primary"
                       : "hover:bg-muted/50"
                   }`}
                 >
-                  <span className="text-xs font-mono text-muted-foreground w-10 shrink-0 pt-0.5">{formatTime(seg.time)}</span>
+                  <span className="text-xs font-mono text-muted-foreground w-10 shrink-0 pt-0.5">{formatTime(segment.time)}</span>
                   <span className={`text-sm ${isActive ? "text-foreground font-medium" : "text-muted-foreground"}`}>
-                    {seg.text}
+                    {segment.text}
                   </span>
                 </button>
               );
-            })}
+            }) : (
+              <div className="rounded-xl border border-dashed border-border px-4 py-6 text-sm text-muted-foreground">
+                Select or upload a lesson to generate transcript guidance for this study session.
+              </div>
+            )}
           </div>
         )}
 
         {activeTab === "Notes" && (
-          <div className="text-center py-8">
-            <p className="text-muted-foreground text-sm">Your notes will appear here.</p>
-            <p className="text-muted-foreground text-xs mt-1">Click timestamps in the transcript to add notes.</p>
+          <div className="space-y-3">
+            {noteEntries.length > 0 ? noteEntries.map((note) => (
+              <button
+                key={note.id}
+                onClick={() => onSeek(note.time)}
+                className="w-full rounded-xl border border-border p-3 text-left transition-colors hover:bg-muted/40"
+              >
+                <div className="mb-1 flex items-center justify-between gap-3">
+                  <p className="text-sm font-medium text-foreground">{note.title}</p>
+                  <span className="text-xs font-mono text-muted-foreground">{formatTime(note.time)}</span>
+                </div>
+                <p className="text-sm text-muted-foreground">{note.content}</p>
+              </button>
+            )) : (
+              <div className="rounded-xl border border-dashed border-border px-4 py-6 text-sm text-muted-foreground">
+                Notes will appear here once QuizStream has a lesson selected to anchor the playback experience.
+              </div>
+            )}
           </div>
         )}
 
         {activeTab === "Quiz Review" && (
           <div className="space-y-3">
-            {checkpoints.filter((c) => c.status === "completed" || c.status === "incorrect").map((cp) => (
-              <div key={cp.id} className="p-3 rounded-xl border border-border">
+            {checkpoints.filter((checkpoint) => checkpoint.status === "completed" || checkpoint.status === "incorrect").length > 0 ? checkpoints.filter((checkpoint) => checkpoint.status === "completed" || checkpoint.status === "incorrect").map((checkpoint) => (
+              <div key={checkpoint.id} className="p-3 rounded-xl border border-border">
                 <div className="flex items-center gap-2 mb-2">
-                  <span className={`h-2 w-2 rounded-full ${cp.status === "completed" ? "bg-success" : "bg-destructive"}`} />
-                  <span className="text-sm font-medium text-foreground">{cp.label}</span>
-                  <span className="text-xs text-muted-foreground ml-auto">{formatTime(cp.time)}</span>
+                  <span className={`h-2 w-2 rounded-full ${checkpoint.status === "completed" ? "bg-success" : "bg-destructive"}`} />
+                  <span className="text-sm font-medium text-foreground">{checkpoint.label}</span>
+                  <span className="text-xs text-muted-foreground ml-auto">{formatTime(checkpoint.time)}</span>
                 </div>
-                <p className="text-sm text-muted-foreground">{cp.question}</p>
-                <p className="text-xs mt-1 text-success font-medium">Answer: {cp.options[cp.correctIndex]}</p>
+                <p className="text-sm text-muted-foreground">{checkpoint.question}</p>
+                <p className="text-xs mt-1 text-success font-medium">Answer: {checkpoint.options[checkpoint.correctIndex]}</p>
               </div>
-            ))}
+            )) : (
+              <div className="rounded-xl border border-dashed border-border px-4 py-6 text-sm text-muted-foreground">
+                Answer a checkpoint during playback to build a quick review trail here.
+              </div>
+            )}
           </div>
         )}
       </div>
