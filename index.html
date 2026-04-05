@@ -1,5 +1,6 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
+<<<<<<< HEAD
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -15,9 +16,637 @@
     <meta name="twitter:title" content="QuizStream" />
     <meta name="twitter:description" content="AI-guided video learning with transcript review, notes, and progress tracking." />
   </head>
+=======
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>QuizStream - Video Quiz POC</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
 
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
-  </body>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #f5f5f5;
+      padding: 20px;
+    }
+
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+    }
+>>>>>>> 345abb4 (video player)
+
+    h1 {
+      margin-bottom: 30px;
+      color: #333;
+    }
+
+    /* --- NEW CSS FOR FULLSCREEN WRAPPER --- */
+    .video-wrapper {
+      position: relative;
+      background: #000;
+      border-radius: 8px;
+      overflow: hidden;
+      margin-bottom: 30px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center; /* Centers video when in fullscreen */
+    }
+
+    /* When the wrapper goes fullscreen, make it take up the whole screen */
+    .video-wrapper:fullscreen, 
+    .video-wrapper:-webkit-full-screen {
+      width: 100vw;
+      height: 100vh;
+      border-radius: 0;
+    }
+
+    /* Ensure video scales properly inside the fullscreen wrapper */
+    .video-wrapper:fullscreen video,
+    .video-wrapper:-webkit-full-screen video {
+      height: 100%;
+      width: 100%;
+    }
+    /* -------------------------------------- */
+
+    video {
+      width: 100%;
+      display: block;
+    }
+
+    .custom-progress-bar {
+      position: absolute;
+      bottom: 60px; /* Moved up slightly to not overlap native controls */
+      left: 0;
+      right: 0;
+      width: 100%;
+      height: 8px;
+      background: #ddd;
+      cursor: pointer;
+      opacity: 0;
+      transition: opacity 0.2s ease;
+      z-index: 50;
+    }
+
+    .custom-progress-bar.active {
+      opacity: 1;
+    }
+
+    .progress-current {
+      height: 100%;
+      background: #4a90e2;
+      width: 0%;
+      transition: width 0.1s linear;
+    }
+
+    .quiz-dot-container {
+      position: absolute;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 10px;
+      height: 10px;
+      background: #ffd700;
+      border-radius: 50%;
+      border: 2px solid #ffed4e;
+      box-shadow: 0 0 4px rgba(255, 215, 0, 0.8);
+    }
+
+    .overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.85);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+    }
+
+    .overlay.active {
+      display: flex;
+    }
+
+    .quiz-modal {
+      background: white;
+      padding: 40px;
+      border-radius: 12px;
+      max-width: 500px;
+      width: 90%;
+      text-align: center;
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+      animation: slideIn 0.3s ease-out;
+    }
+
+    @keyframes slideIn {
+      from { transform: scale(0.9); opacity: 0; }
+      to { transform: scale(1); opacity: 1; }
+    }
+
+    .quiz-modal h2 { margin-bottom: 20px; color: #333; font-size: 24px; }
+    .quiz-modal p { margin-bottom: 30px; color: #666; font-size: 18px; line-height: 1.5; }
+    .answers { display: flex; flex-direction: column; gap: 12px; margin-bottom: 20px; }
+    .answer-btn { padding: 12px; border: 2px solid #ddd; background: white; border-radius: 6px; cursor: pointer; font-size: 16px; transition: all 0.2s; }
+    .answer-btn:hover { border-color: #4a90e2; background: #f0f4ff; }
+    .answer-btn.selected { border-color: #4a90e2; background: #4a90e2; color: white; }
+    .answer-btn.correct { border-color: #27ae60; background: #27ae60; color: white; }
+    .answer-btn.incorrect { border-color: #e74c3c; background: #e74c3c; color: white; }
+    .submit-btn { padding: 12px 30px; background: #4a90e2; color: white; border: none; border-radius: 6px; font-size: 16px; cursor: pointer; font-weight: 600; transition: background 0.2s; }
+    .submit-btn:hover:not(:disabled) { background: #357abd; }
+    .submit-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+    .score-display { text-align: center; }
+    .score-display h2 { font-size: 32px; margin-bottom: 10px; color: #27ae60; }
+    .score-display .percentage { font-size: 72px; font-weight: bold; color: #4a90e2; margin: 20px 0; }
+    .score-display .details { color: #666; font-size: 18px; margin-bottom: 20px; }
+    .restart-btn { padding: 12px 30px; background: #4a90e2; color: white; border: none; border-radius: 6px; font-size: 16px; cursor: pointer; font-weight: 600; }
+    .restart-btn:hover { background: #357abd; }
+    
+    .controls-info { background: white; padding: 20px; border-radius: 8px; margin-bottom: 20px; color: #666; display: flex; justify-content: space-between; align-items: center;}
+    .controls-info strong { color: #333; }
+    
+    /* Custom Fullscreen button styling */
+    #fs-btn {
+      padding: 10px 15px;
+      background: #333;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    #fs-btn:hover { background: #555; }
+
+    /* Custom Fullscreen Toggle inside the video player */
+    .fullscreen-toggle {
+      position: absolute;
+      bottom: 20px;
+      right: 20px;
+      background: rgba(0, 0, 0, 0.6);
+      color: white;
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      border-radius: 4px;
+      padding: 8px 12px;
+      font-size: 18px;
+      cursor: pointer;
+      z-index: 60; /* Keeps it above the video but below overlays */
+      transition: background 0.2s, opacity 0.2s;
+      opacity: 0; /* Hidden by default until hover */
+    }
+
+    .fullscreen-toggle:hover {
+      background: rgba(0, 0, 0, 0.9);
+    }
+
+    /* Show the button when hovering over the video wrapper */
+    .video-wrapper:hover .fullscreen-toggle {
+      opacity: 1;
+    }
+
+    /* Container for bottom controls */
+    .custom-controls {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      width: 100%;
+      padding: 10px 20px;
+      background: linear-gradient(transparent, rgba(0, 0, 0, 0.8)); /* Nice fade effect */
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      z-index: 60;
+      opacity: 0; /* Hide by default */
+      transition: opacity 0.3s ease;
+    }
+
+    /* Show controls when hovering over the video */
+    .video-wrapper:hover .custom-controls,
+    .video-wrapper:hover .custom-progress-bar {
+      opacity: 1;
+    }
+
+    /* Style the buttons */
+    .control-btn {
+      background: transparent;
+      color: white;
+      border: none;
+      font-size: 16px;
+      cursor: pointer;
+      font-weight: bold;
+      transition: color 0.2s;
+    }
+
+    .control-btn:hover {
+      color: #4a90e2; /* Your existing blue brand color */
+    }
+
+    /* Adjust your existing progress bar to sit just above the controls */
+    .custom-progress-bar {
+      /* ... keep your existing properties, but change bottom ... */
+      bottom: 45px; 
+    }
+
+    /* Volume Container */
+    .volume-container {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    /* Style the native range input slightly */
+    #volumeSlider {
+      width: 80px;
+      cursor: pointer;
+      accent-color: #4a90e2; /* Matches your brand blue */
+    }
+
+    /* Optional: Hide the slider until you hover over the volume area (like YouTube) */
+    #volumeSlider {
+      width: 0;
+      opacity: 0;
+      transition: width 0.2s ease, opacity 0.2s ease;
+    }
+
+    .volume-container:hover #volumeSlider {
+      width: 80px;
+      opacity: 1;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🎬 QuizStream POC</h1>
+
+    <div class="controls-info">
+      <div>
+        <strong>📝 Video Info:</strong> Replace the video source below with your own MP4 file. Quiz pauses at 0:05s, 0:15s, and 0:30s.
+      </div>
+      <button id="fs-btn">⛶ Go Fullscreen</button>
+    </div>
+
+    <div class="video-wrapper" id="videoWrapper">
+        <video id="video">
+          <source src="YTDown.com_YouTube_ALL-of-calculus-3-in-8-minutes_Media_5kwz7ajxfyA_001_720p.mp4" type="video/mp4">
+        </video>
+
+        <div class="custom-progress-bar" id="progressBar">
+          <div class="progress-current" id="progressCurrent"></div>
+        </div>
+
+        <div class="custom-controls">
+          <div style="display: flex; align-items: center; gap: 15px;">
+            <button id="playPauseBtn" class="control-btn">▶ Play</button>
+            <div class="volume-container">
+              <button id="muteBtn" class="control-btn">🔊</button>
+              <input type="range" id="volumeSlider" min="0" max="1" step="0.05" value="1">
+            </div>
+          </div>
+          <button id="fsToggleBtn" class="control-btn">⛶ Fullscreen</button>
+        </div>
+
+        <div class="overlay" id="overlay">
+          <div class="quiz-modal" id="quizModal"></div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ============ CONFIGURATION ============
+    const pausePoints = [
+      { time: 5, question: "What animal appears first in the video?", answers: ["Rabbit", "Deer", "Bird", "Squirrel"], correct: 0 },
+      { time: 15, question: "What color is the main character?", answers: ["White", "Brown", "Black", "Gray"], correct: 1 },
+      { time: 30, question: "Is this an animated video?", answers: ["Yes", "No"], correct: 0 }
+    ];
+
+    // ============ STATE ============
+    const video = document.getElementById('video');
+    const overlay = document.getElementById('overlay');
+    const quizModal = document.getElementById('quizModal');
+    let scores = [];
+    let currentQuestionIndex = null;
+    let selectedAnswer = null;
+    let hasAnswered = false;
+
+    // ============ INITIALIZE ELEMENTS ============
+    const progressBar = document.getElementById('progressBar');
+    const progressCurrent = document.getElementById('progressCurrent');
+    const videoWrapper = document.getElementById('videoWrapper');
+    const fsBtn = document.getElementById('fs-btn');
+
+    // ============ FULLSCREEN LOGIC ============
+    // Trigger fullscreen on the WRAPPER, not the video.
+    fsBtn.addEventListener('click', () => {
+      if (!document.fullscreenElement) {
+        if (videoWrapper.requestFullscreen) {
+          videoWrapper.requestFullscreen();
+        } else if (videoWrapper.webkitRequestFullscreen) { /* Safari */
+          videoWrapper.webkitRequestFullscreen();
+        } else if (videoWrapper.msRequestFullscreen) { /* IE11 */
+          videoWrapper.msRequestFullscreen();
+        }
+        fsBtn.innerText = "Exit Fullscreen";
+      } else {
+        if (document.exitFullscreen) {
+          document.exitFullscreen();
+        } else if (document.webkitExitFullscreen) { /* Safari */
+          document.webkitExitFullscreen();
+        } else if (document.msExitFullscreen) { /* IE11 */
+          document.msExitFullscreen();
+        }
+        fsBtn.innerText = "⛶ Go Fullscreen";
+      }
+    });
+
+    // Show/hide progress bar on hover
+    videoWrapper.addEventListener('mouseenter', () => progressBar.classList.add('active'));
+    videoWrapper.addEventListener('mouseleave', () => progressBar.classList.remove('active'));
+    videoWrapper.addEventListener('mousemove', () => {
+      progressBar.classList.add('active');
+      clearTimeout(videoWrapper.hoverTimeout);
+      videoWrapper.hoverTimeout = setTimeout(() => {
+        progressBar.classList.remove('active');
+      }, 2000);
+    });
+
+    // Add quiz dots to progress bar
+    video.addEventListener('loadedmetadata', () => {
+      const duration = video.duration;
+      pausePoints.forEach(point => {
+        const percentPos = (point.time / duration) * 100;
+        const dot = document.createElement('div');
+        dot.className = 'quiz-dot-container';
+        dot.style.left = percentPos + '%';
+        progressBar.appendChild(dot);
+      });
+    });
+
+    // Update progress bar
+    video.addEventListener('timeupdate', () => {
+      const percent = (video.currentTime / video.duration) * 100;
+      progressCurrent.style.width = percent + '%';
+    });
+
+    // Click to seek
+    progressBar.addEventListener('click', (e) => {
+      const rect = progressBar.getBoundingClientRect();
+      const clickX = e.clientX - rect.left;
+      const percent = clickX / rect.width;
+      video.currentTime = percent * video.duration;
+    });
+
+    // ============ VIDEO MONITORING ============
+    video.addEventListener('timeupdate', () => {
+      for (let index = 0; index < pausePoints.length; index++) {
+        const point = pausePoints[index];
+        if (scores[index] === undefined && video.currentTime > point.time) {
+          video.currentTime = point.time;
+          video.pause();
+          showQuiz(index);
+          return;
+        }
+      }
+
+      pausePoints.forEach((point, index) => {
+        if (Math.abs(video.currentTime - point.time) < 0.5 && scores[index] === undefined) {
+          video.pause();
+          showQuiz(index);
+        }
+      });
+    });
+
+    video.addEventListener('ended', showFinalScore);
+
+    // ============ QUIZ DISPLAY ============
+    function showQuiz(index) {
+      currentQuestionIndex = index;
+      selectedAnswer = null;
+      hasAnswered = false;
+
+      const point = pausePoints[index];
+      let html = `
+        <h2>Question ${index + 1} of ${pausePoints.length}</h2>
+        <p>${point.question}</p>
+        <div class="answers">
+      `;
+
+      point.answers.forEach((answer, i) => {
+        html += `<button class="answer-btn" onclick="selectAnswer(${i})">${answer}</button>`;
+      });
+
+      html += `
+        </div>
+        <button class="submit-btn" onclick="submitAnswer()" ${hasAnswered ? 'disabled' : ''}>
+          ${hasAnswered ? 'Continue' : 'Submit Answer'}
+        </button>
+      `;
+
+      quizModal.innerHTML = html;
+      overlay.classList.add('active');
+    }
+
+    function selectAnswer(index) {
+      if (hasAnswered) return;
+      selectedAnswer = index;
+      document.querySelectorAll('.answer-btn').forEach((btn, i) => {
+        btn.classList.toggle('selected', i === index);
+      });
+    }
+
+    function submitAnswer() {
+      if (hasAnswered) {
+        overlay.classList.remove('active');
+        video.play();
+        currentQuestionIndex = null;
+        return;
+      }
+
+      if (selectedAnswer === null) {
+        alert('Please select an answer!');
+        return;
+      }
+
+      const point = pausePoints[currentQuestionIndex];
+      const isCorrect = selectedAnswer === point.correct;
+      scores[currentQuestionIndex] = isCorrect ? 1 : 0;
+      hasAnswered = true;
+
+      document.querySelectorAll('.answer-btn').forEach((btn, i) => {
+        btn.disabled = true;
+        if (i === point.correct) btn.classList.add('correct');
+        else if (i === selectedAnswer) btn.classList.add('incorrect');
+      });
+
+      document.querySelector('.submit-btn').innerHTML = '✓ Continue';
+      document.querySelector('.submit-btn').disabled = false;
+    }
+
+    function showFinalScore() {
+      const correct = scores.filter(s => s === 1).length;
+      const total = pausePoints.length;
+      const percentage = Math.round((correct / total) * 100);
+
+      overlay.classList.add('active');
+      quizModal.innerHTML = `
+        <div class="score-display">
+          <h2>Quiz Complete! 🎉</h2>
+          <div class="percentage">${percentage}%</div>
+          <div class="details">${correct} out of ${total} correct</div>
+          <button class="restart-btn" onclick="location.reload()">Restart Quiz</button>
+        </div>
+      `;
+      video.pause();
+    }
+
+    const fsToggleBtn = document.getElementById('fsToggleBtn');
+
+    // 1. Handle the click event on our new button
+    fsToggleBtn.addEventListener('click', () => {
+      if (!document.fullscreenElement) {
+        // Enter Fullscreen
+        if (videoWrapper.requestFullscreen) {
+          videoWrapper.requestFullscreen();
+        } else if (videoWrapper.webkitRequestFullscreen) { /* Safari */
+          videoWrapper.webkitRequestFullscreen();
+        }
+      } else {
+        // Exit Fullscreen
+        if (document.exitFullscreen) {
+          document.exitFullscreen();
+        } else if (document.webkitExitFullscreen) { /* Safari */
+          document.webkitExitFullscreen();
+        }
+      }
+    });
+
+    // 2. Keep the button's icon in sync, even if they press the 'Esc' key!
+    function updateFullscreenUI() {
+      if (document.fullscreenElement || document.webkitFullscreenElement) {
+        // We are IN fullscreen
+        fsToggleBtn.innerHTML = '🗗'; // Change to an "exit" icon (or text like "Exit")
+        fsToggleBtn.title = "Exit Fullscreen";
+      } else {
+        // We are NOT in fullscreen
+        fsToggleBtn.innerHTML = '⛶'; // Change back to "enter" icon
+        fsToggleBtn.title = "Go Fullscreen";
+      }
+    }
+
+    document.addEventListener('fullscreenchange', updateFullscreenUI);
+    document.addEventListener('webkitfullscreenchange', updateFullscreenUI);
+
+    const playPauseBtn = document.getElementById('playPauseBtn');
+
+    function togglePlay() {
+      if (overlay.classList.contains('active')) return; // Don't play if quiz is open
+
+      if (video.paused) {
+        video.play();
+        playPauseBtn.innerText = "⏸ Pause";
+      } else {
+        video.pause();
+        playPauseBtn.innerText = "▶ Play";
+      }
+    }
+
+    // Click the button to toggle
+    playPauseBtn.addEventListener('click', togglePlay);
+
+    // Click the video itself to toggle
+    video.addEventListener('click', togglePlay);
+
+    // Make sure the button updates if the video pauses for a quiz
+    video.addEventListener('pause', () => playPauseBtn.innerText = "▶ Play");
+    video.addEventListener('play', () => playPauseBtn.innerText = "⏸ Pause");
+
+    // Keyboard Shortcuts
+    document.addEventListener('keydown', (e) => {
+      // If the quiz is active, ignore all keyboard shortcuts so they can't mess with the video
+      if (overlay.classList.contains('active')) return;
+
+      switch (e.code) {
+        case 'Space':
+          e.preventDefault(); // Prevents the page from scrolling down
+          togglePlay();
+          break;
+
+        case 'ArrowRight':
+          e.preventDefault();
+          // Skip forward 5 seconds (Math.min prevents going past the end)
+          video.currentTime = Math.min(video.duration, video.currentTime + 5);
+          break;
+
+        case 'ArrowLeft':
+          e.preventDefault();
+          // Skip backward 5 seconds (Math.max prevents going below 0)
+          video.currentTime = Math.max(0, video.currentTime - 5);
+          break;
+
+        case 'ArrowUp':
+          e.preventDefault(); // Prevents the page from scrolling up
+          // Increase volume by 10% (max 1.0)
+          video.volume = Math.min(1, video.volume + 0.1);
+          if (video.muted) video.muted = false; // Unmute if they raise the volume
+          updateVolumeUI();
+          break;
+
+        case 'ArrowDown':
+          e.preventDefault();
+          // Decrease volume by 10% (min 0)
+          video.volume = Math.max(0, video.volume - 0.1);
+          updateVolumeUI();
+          break;
+
+        case 'KeyM':
+          e.preventDefault();
+          video.muted = !video.muted;
+          updateVolumeUI();
+          break;
+      }
+    });
+
+    const volumeSlider = document.getElementById('volumeSlider');
+    const muteBtn = document.getElementById('muteBtn');
+
+    // Update video volume when user drags the slider
+    volumeSlider.addEventListener('input', (e) => {
+      video.volume = e.target.value;
+      if (video.volume === 0) {
+        video.muted = true;
+      } else {
+        video.muted = false;
+      }
+      updateVolumeUI();
+    });
+
+    // Click the speaker icon to toggle mute
+    muteBtn.addEventListener('click', () => {
+      video.muted = !video.muted;
+      updateVolumeUI();
+    });
+
+    // Helper function to keep UI in sync whether volume changes via keyboard or slider
+    function updateVolumeUI() {
+      volumeSlider.value = video.muted ? 0 : video.volume;
+      
+      // Update the icon based on volume level
+      if (video.muted || video.volume === 0) {
+        muteBtn.innerText = '🔇';
+      } else if (video.volume < 0.5) {
+        muteBtn.innerText = '🔉';
+      } else {
+        muteBtn.innerText = '🔊';
+      }
+    }
+
+    // Set initial volume state on load
+    video.volume = 1;
+    updateVolumeUI();
+  </script>
+</body>
 </html>
+>>>>>>> Stashed changes
