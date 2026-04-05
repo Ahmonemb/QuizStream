@@ -154,13 +154,13 @@ const Home = () => {
     try {
       setStatusText("Analyzing video concepts and writing questions...");
 
-      // 1. Call your new AI Chain route!
+      // 1. Call your AI Chain route!
       const response = await fetch('http://localhost:5001/api/analyze-video', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           videoId: currentVideoId,
-          // We tell Gemini EXACTLY what shape the data needs to be in so our UI doesn't break
+          questionCount: questionCount[0], // <-- SEND IT HERE!
           geminiPrompt: `Turn this video timeline into ${questionCount[0]} multiple-choice questions. 
           Respond ONLY with a valid JSON array of objects in this exact format, with no markdown tags:
           [

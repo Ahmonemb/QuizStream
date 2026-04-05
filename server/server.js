@@ -9,6 +9,7 @@ import { fileURLToPath } from "url";
 import FormData from "form-data";
 import { TwelveLabs } from 'twelvelabs-js'; // ADD THIS
 import crypto from "crypto";
+import { GoogleGenerativeAI } from '@google/generative-ai'; 
 
 
 dotenv.config();
@@ -16,6 +17,7 @@ dotenv.config();
 // Initialize the client
 
 const client = new TwelveLabs({ apiKey: process.env.TWELVE_LABS_API_KEY });
+const genAI = new GoogleGenerativeAI(process.env.GOOGLE_GEMINI_API_KEY);
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -31,10 +33,24 @@ app.use(express.urlencoded({ limit: "50mb" }));
 // Multer for video uploads
 const upload = multer({ dest: "uploads/" });
 
-// Store quiz data in memory
-const quizData = {};
-// Store file hashes to prevent duplicate uploads (Hash -> videoId)
-const fileHashes = {};
+// ============ SIMPLE JSON DATABASE ============
+const DB_PATH = path.join(__dirname, "database.json");
+
+// 1. Load existing data when the server boots up
+let quizData = {};
+let fileHashes = {};
+
+if (fs.existsSync(DB_PATH)) {
+  console.log("📂 Loading existing database...");
+  const savedData = JSON.parse(fs.readFileSync(DB_PATH, "utf-8"));
+  quizData = savedData.quizData || {};
+  fileHashes = savedData.fileHashes || {};
+}
+
+// 2. Helper function to permanently save changes to the hard drive
+function saveDatabase() {
+  fs.writeFileSync(DB_PATH, JSON.stringify({ quizData, fileHashes }, null, 2));
+}
 
 // Helper function to generate a unique fingerprint for a file
 function getFileHash(filePath) {
@@ -105,6 +121,9 @@ app.post("/api/upload-video", upload.single("video"), async (req, res) => {
 
     // 4. Save the fingerprint so we remember it next time!
     fileHashes[fileFingerprint] = videoId;
+    
+    // NEW: Save the memory to the hard drive!
+    saveDatabase();
 
     res.json({ success: true, videoId, fileName, taskId });
     
@@ -186,7 +205,8 @@ app.post("/api/generate-quiz", async (req, res) => {
 // ============ AI PIPELINE: TWELVE LABS -> GEMINI ============
 app.post("/api/analyze-video", async (req, res) => {
   try {
-    const { videoId, geminiPrompt } = req.body;
+    // 1. Extract questionCount from the frontend request!
+    const { videoId, geminiPrompt, questionCount } = req.body; 
 
     if (!quizData[videoId]) {
       return res.status(404).json({ error: "Video not found locally" });
@@ -194,7 +214,6 @@ app.post("/api/analyze-video", async (req, res) => {
 
     console.log(`🧠 Starting AI Chain for video: ${videoId}`);
 
-    // STEP 1: Get the actual Twelve Labs Video ID
     const task = await client.tasks.retrieve(quizData[videoId].taskId);
     const tlVideoId = task.videoId;
 
@@ -202,33 +221,39 @@ app.post("/api/analyze-video", async (req, res) => {
       throw new Error("Twelve Labs has not finished processing this video yet.");
     }
 
-    console.log("1️⃣ Asking Twelve Labs to summarize the video...");
+    console.log(`1️⃣ Asking Twelve Labs to extract enough info for ${questionCount} questions...`);
 
-    // STEP 2: Use Twelve Labs 'Generate' API to get the summary with timestamps
+    // 2. Inject the target number into the Twelve Labs prompt!
     const tlGeneration = await client.analyze({
       videoId: tlVideoId,
-      prompt: "Give me a general overview of the important information that is covered, with time intervals of when the information is given. Make sure the time intervals are in seconds."
+      prompt: `Give me a general overview of the important information that is covered, with time intervals of when the information is given. Make sure to extract at least enough distinct key moments and concepts to generate ${questionCount} high-quality multiple-choice questions. Make sure the time intervals are in seconds.`
     });
 
-    // The new analyze method still stores the response exactly where we expect it!
     const twelveLabsSummary = tlGeneration.data;
-    
+
     console.log("✅ Twelve Labs Summary Generated!");
+
     console.log(twelveLabsSummary);
 
     console.log("2️⃣ Sending summary to Gemini...");
 
-    // STEP 3: Pass the Twelve Labs output directly into Gemini
     const finalGeminiOutput = await processWithGemini(twelveLabsSummary, geminiPrompt);
     
     console.log("✅ Gemini Processing Complete!");
 
-    // Return the final data to your React frontend!
+    // NEW: Save the generated quizzes to our memory
+    quizData[videoId].quizzes = finalGeminiOutput;
+    
+    // NEW: Save it permanently to the hard drive!
+    saveDatabase();
+
     res.json({ 
       success: true, 
       twelveLabsRawOutput: twelveLabsSummary,
       geminiFinalOutput: finalGeminiOutput 
     });
+
+    console.log(finalGeminiOutput)
 
   } catch (error) {
     console.error("AI Pipeline error:", error.message || error);
@@ -239,40 +264,28 @@ app.post("/api/analyze-video", async (req, res) => {
 // ============ GEMINI HELPER ============
 async function processWithGemini(twelveLabsSummary, userPrompt) {
   try {
-    const response = await axios.post(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${process.env.GOOGLE_GEMINI_API_KEY}`,
-      {
-        contents: [
-          {
-            parts: [
-              {
-                text: `You are an expert educational assistant. 
-                
-                Here is a summary and timeline of a video provided by a video-understanding AI:
-                """
-                ${twelveLabsSummary}
-                """
-                
-                Based ONLY on the video information above, please complete the following task:
-                ${userPrompt || "Format this summary into a clean, easy-to-read study guide."}`
-              },
-            ],
-          },
-        ],
-        generationConfig: {
-          temperature: 0.7,
-        },
-      },
-      {
-        headers: {
-          "Content-Type": "application/json",
-        },
-      }
-    );
+    // 1. Tell the SDK which model to use
+    const model = genAI.getGenerativeModel({ model: "gemini-3-flash-preview" });
 
-    return response.data.candidates[0].content.parts[0].text;
+    // 2. Build the prompt
+    const prompt = `You are an expert educational assistant. 
+    
+    Here is a summary and timeline of a video provided by a video-understanding AI:
+    """
+    ${twelveLabsSummary}
+    """
+    
+    Based ONLY on the video information above, please complete the following task:
+    ${userPrompt || "Format this summary into a clean, easy-to-read study guide."}`;
+
+    // 3. Generate the content! No URLs or headers to worry about.
+    const result = await model.generateContent(prompt);
+    const response = await result.response;
+    
+    return response.text();
+    
   } catch (error) {
-    console.error("Gemini API Error:", error.response?.data || error.message);
+    console.error("Gemini API Error:", error.message || error);
     throw new Error("Failed to process data with Gemini.");
   }
 }
