@@ -25,6 +25,7 @@ backend/data/videos.json
 *.njsproj
 *.sln
 *.sw?
-.env*
 .env.local
 .env
+
+server/.env
