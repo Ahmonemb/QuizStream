@@ -1,5 +1,5 @@
 import { Target, CheckCircle2, Clock, Flame, Circle } from "lucide-react";
-import { Checkpoint } from "@/data/courseData";
+import { Checkpoint } from "@/lib/app-types";
 
 interface ProgressPanelProps {
   checkpoints: Checkpoint[];

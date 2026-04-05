@@ -1,8 +1,10 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { User, Bell, Palette, Shield, Globe, HelpCircle, LogOut } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import {
   Select,
   SelectContent,
@@ -10,9 +12,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { learnerProfile } from "@/data/courseData";
+import { useAppState } from "@/context/AppStateContext";
+
+const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 const Settings = () => {
+  const navigate = useNavigate();
+  const { user, updateUser, logout } = useAppState();
   const [notifications, setNotifications] = useState({
     checkpointReminders: true,
     streakAlerts: true,
@@ -23,6 +29,18 @@ const Settings = () => {
     autoPauseAtCheckpoint: true,
     openTranscriptByDefault: true,
   });
+  const [profileValues, setProfileValues] = useState({
+    name: user?.name ?? "",
+    email: user?.email ?? "",
+  });
+  const [profileErrors, setProfileErrors] = useState<{ name?: string; email?: string }>({});
+
+  useEffect(() => {
+    setProfileValues({
+      name: user?.name ?? "",
+      email: user?.email ?? "",
+    });
+  }, [user?.email, user?.name]);
 
   const toggleNotification = (key: keyof typeof notifications) => {
     setNotifications((previousNotifications) => ({ ...previousNotifications, [key]: !previousNotifications[key] }));
@@ -30,6 +48,33 @@ const Settings = () => {
 
   const toggleLearningPreference = (key: keyof typeof learningPreferences) => {
     setLearningPreferences((previousPreferences) => ({ ...previousPreferences, [key]: !previousPreferences[key] }));
+  };
+
+  const handleSaveProfile = () => {
+    const nextErrors: { name?: string; email?: string } = {};
+
+    if (!profileValues.name.trim()) {
+      nextErrors.name = "Display name is required.";
+    }
+
+    if (!profileValues.email.trim()) {
+      nextErrors.email = "Email is required.";
+    } else if (!emailPattern.test(profileValues.email.trim())) {
+      nextErrors.email = "Enter a valid email address.";
+    }
+
+    setProfileErrors(nextErrors);
+
+    if (Object.keys(nextErrors).length > 0) {
+      return;
+    }
+
+    updateUser(profileValues);
+  };
+
+  const handleLogout = () => {
+    logout();
+    navigate("/welcome", { replace: true });
   };
 
   return (
@@ -45,25 +90,44 @@ const Settings = () => {
           <h2 className="text-base font-semibold text-foreground">Profile</h2>
         </div>
         <div className="flex items-center gap-4">
-          <div className="h-16 w-16 rounded-2xl bg-primary flex items-center justify-center text-primary-foreground text-xl font-bold">
-            {learnerProfile.initials}
+          <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-primary text-xl font-bold text-primary-foreground">
+            {user?.initials ?? "QS"}
           </div>
           <div>
-            <p className="text-base font-semibold text-foreground">{learnerProfile.name}</p>
-            <p className="text-sm text-muted-foreground">{learnerProfile.email}</p>
-            <button className="text-xs text-primary font-medium mt-1 hover:underline">Manage workspace profile</button>
+            <p className="text-base font-semibold text-foreground">{user?.name}</p>
+            <p className="text-sm text-muted-foreground">{user?.email}</p>
+            <p className="mt-1 text-xs font-medium text-primary">{user?.plan}</p>
           </div>
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div>
-            <Label className="text-xs text-muted-foreground uppercase tracking-wide">Display Name</Label>
-            <Input type="text" defaultValue={learnerProfile.name} className="mt-1 rounded-xl" />
+            <Label className="text-xs uppercase tracking-wide text-muted-foreground">Display Name</Label>
+            <Input
+              type="text"
+              value={profileValues.name}
+              onChange={(event) => {
+                setProfileValues((previous) => ({ ...previous, name: event.target.value }));
+                setProfileErrors((previous) => ({ ...previous, name: undefined }));
+              }}
+              className={`mt-1 rounded-xl ${profileErrors.name ? "border-destructive focus-visible:ring-destructive" : ""}`}
+            />
+            {profileErrors.name && <p className="mt-1 text-sm text-destructive">{profileErrors.name}</p>}
           </div>
           <div>
-            <Label className="text-xs text-muted-foreground uppercase tracking-wide">Email</Label>
-            <Input type="email" defaultValue={learnerProfile.email} className="mt-1 rounded-xl" />
+            <Label className="text-xs uppercase tracking-wide text-muted-foreground">Email</Label>
+            <Input
+              type="email"
+              value={profileValues.email}
+              onChange={(event) => {
+                setProfileValues((previous) => ({ ...previous, email: event.target.value }));
+                setProfileErrors((previous) => ({ ...previous, email: undefined }));
+              }}
+              className={`mt-1 rounded-xl ${profileErrors.email ? "border-destructive focus-visible:ring-destructive" : ""}`}
+            />
+            {profileErrors.email && <p className="mt-1 text-sm text-destructive">{profileErrors.email}</p>}
           </div>
         </div>
+        <Button onClick={handleSaveProfile} className="rounded-xl">Save profile</Button>
       </div>
 
       <div className="bg-card rounded-2xl p-6 card-shadow space-y-5">
@@ -80,7 +144,7 @@ const Settings = () => {
           <div key={notification.key} className="flex items-center justify-between py-1">
             <div>
               <Label className="text-sm font-medium text-foreground">{notification.label}</Label>
-              <p className="text-xs text-muted-foreground mt-0.5">{notification.description}</p>
+              <p className="mt-0.5 text-xs text-muted-foreground">{notification.description}</p>
             </div>
             <Switch checked={notifications[notification.key]} onCheckedChange={() => toggleNotification(notification.key)} />
           </div>
@@ -92,9 +156,9 @@ const Settings = () => {
           <Palette className="h-5 w-5 text-tertiary" />
           <h2 className="text-base font-semibold text-foreground">Appearance</h2>
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div>
-            <Label className="text-xs text-muted-foreground uppercase tracking-wide">Theme</Label>
+            <Label className="text-xs uppercase tracking-wide text-muted-foreground">Theme</Label>
             <Select defaultValue="light">
               <SelectTrigger className="mt-1 rounded-xl">
                 <SelectValue />
@@ -107,7 +171,7 @@ const Settings = () => {
             </Select>
           </div>
           <div>
-            <Label className="text-xs text-muted-foreground uppercase tracking-wide">Language</Label>
+            <Label className="text-xs uppercase tracking-wide text-muted-foreground">Language</Label>
             <Select defaultValue="en">
               <SelectTrigger className="mt-1 rounded-xl">
                 <SelectValue />
@@ -128,9 +192,9 @@ const Settings = () => {
           <Globe className="h-5 w-5 text-secondary" />
           <h2 className="text-base font-semibold text-foreground">Learning preferences</h2>
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div>
-            <Label className="text-xs text-muted-foreground uppercase tracking-wide">Playback Speed</Label>
+            <Label className="text-xs uppercase tracking-wide text-muted-foreground">Playback Speed</Label>
             <Select defaultValue="1x">
               <SelectTrigger className="mt-1 rounded-xl">
                 <SelectValue />
@@ -146,7 +210,7 @@ const Settings = () => {
             </Select>
           </div>
           <div>
-            <Label className="text-xs text-muted-foreground uppercase tracking-wide">Checkpoint Style</Label>
+            <Label className="text-xs uppercase tracking-wide text-muted-foreground">Checkpoint Style</Label>
             <Select defaultValue="balanced">
               <SelectTrigger className="mt-1 rounded-xl">
                 <SelectValue />
@@ -162,14 +226,14 @@ const Settings = () => {
         <div className="flex items-center justify-between py-1">
           <div>
             <Label className="text-sm font-medium text-foreground">Auto-pause at checkpoint</Label>
-            <p className="text-xs text-muted-foreground mt-0.5">Pause the lesson when QuizStream surfaces a question.</p>
+            <p className="mt-0.5 text-xs text-muted-foreground">Pause the lesson when QuizStream surfaces a question.</p>
           </div>
           <Switch checked={learningPreferences.autoPauseAtCheckpoint} onCheckedChange={() => toggleLearningPreference("autoPauseAtCheckpoint")} />
         </div>
         <div className="flex items-center justify-between py-1">
           <div>
             <Label className="text-sm font-medium text-foreground">Open transcript by default</Label>
-            <p className="text-xs text-muted-foreground mt-0.5">Keep transcript and notes visible beside the lesson.</p>
+            <p className="mt-0.5 text-xs text-muted-foreground">Keep transcript and notes visible beside the lesson.</p>
           </div>
           <Switch checked={learningPreferences.openTranscriptByDefault} onCheckedChange={() => toggleLearningPreference("openTranscriptByDefault")} />
         </div>
@@ -181,17 +245,17 @@ const Settings = () => {
           <h2 className="text-base font-semibold text-foreground">Privacy & Security</h2>
         </div>
         <div className="space-y-3">
-          <button className="w-full text-left p-3 rounded-xl hover:bg-muted/50 transition-colors">
+          <button className="w-full rounded-xl p-3 text-left transition-colors hover:bg-muted/50">
             <p className="text-sm font-medium text-foreground">Update password</p>
-            <p className="text-xs text-muted-foreground">Change the password for your QuizStream login.</p>
+            <p className="text-xs text-muted-foreground">Reserved for a future authenticated version of QuizStream.</p>
           </button>
-          <button className="w-full text-left p-3 rounded-xl hover:bg-muted/50 transition-colors">
+          <button className="w-full rounded-xl p-3 text-left transition-colors hover:bg-muted/50">
             <p className="text-sm font-medium text-foreground">Two-factor authentication</p>
-            <p className="text-xs text-muted-foreground">Add a second step before opening your learning workspace.</p>
+            <p className="text-xs text-muted-foreground">Reserved for a future authenticated version of QuizStream.</p>
           </button>
-          <button className="w-full text-left p-3 rounded-xl hover:bg-muted/50 transition-colors">
+          <button className="w-full rounded-xl p-3 text-left transition-colors hover:bg-muted/50">
             <p className="text-sm font-medium text-foreground">Export study history</p>
-            <p className="text-xs text-muted-foreground">Download progress, notes, and checkpoint performance.</p>
+            <p className="text-xs text-muted-foreground">Use local uploads and profile data to power future exports.</p>
           </button>
         </div>
       </div>
@@ -202,28 +266,28 @@ const Settings = () => {
           <h2 className="text-base font-semibold text-foreground">Help</h2>
         </div>
         <div className="space-y-3">
-          <button className="w-full text-left p-3 rounded-xl hover:bg-muted/50 transition-colors">
+          <button className="w-full rounded-xl p-3 text-left transition-colors hover:bg-muted/50">
             <p className="text-sm font-medium text-foreground">View onboarding tips</p>
-            <p className="text-xs text-muted-foreground">See how QuizStream places checkpoints and review prompts.</p>
+            <p className="text-xs text-muted-foreground">See how QuizStream personalizes your lessons after you create a profile.</p>
           </button>
-          <button className="w-full text-left p-3 rounded-xl hover:bg-muted/50 transition-colors">
+          <button className="w-full rounded-xl p-3 text-left transition-colors hover:bg-muted/50">
             <p className="text-sm font-medium text-foreground">Contact support</p>
             <p className="text-xs text-muted-foreground">Reach the product team if a lesson or quiz needs a fix.</p>
           </button>
         </div>
       </div>
 
-      <div className="flex items-center justify-between p-4 rounded-2xl border border-border">
+      <div className="flex items-center justify-between rounded-2xl border border-border p-4">
         <div className="flex items-center gap-3">
           <LogOut className="h-5 w-5 text-muted-foreground" />
           <div>
-            <p className="text-sm font-medium text-foreground">Sign Out</p>
-            <p className="text-xs text-muted-foreground">Sign out of this QuizStream workspace.</p>
+            <p className="text-sm font-medium text-foreground">Reset local profile</p>
+            <p className="text-xs text-muted-foreground">Clear the saved user and return to the QuizStream welcome screen.</p>
           </div>
         </div>
-        <button className="px-4 py-2 rounded-xl border border-destructive/30 text-destructive text-sm font-medium hover:bg-destructive/10 transition-colors">
+        <Button variant="outline" onClick={handleLogout} className="border-destructive/30 text-destructive hover:bg-destructive/10 hover:text-destructive">
           Sign Out
-        </button>
+        </Button>
       </div>
     </div>
   );

@@ -1,217 +1,161 @@
-import { useState, type ChangeEvent, type DragEvent } from "react";
-import {
-  Upload,
-  FileVideo,
-  Sparkles,
-  ChevronRight,
-  BookOpen,
-  Zap,
-  Brain,
-  PenLine,
-  ListOrdered,
-  CheckCircle2,
-  FileText,
-} from "lucide-react";
-import { Switch } from "@/components/ui/switch";
-import { Label } from "@/components/ui/label";
-import { Slider } from "@/components/ui/slider";
+import { Target, Clock, Flame, TrendingUp, BookOpen, Award, Calendar } from "lucide-react";
+import { useAppState } from "@/context/AppStateContext";
+import { createPersonalizedCheckpoints, formatUploadDate } from "@/lib/coursePresentation";
 
-const sessionQuestionTypes = [
-  { id: "checkpoint", label: "Checkpoint Quiz", description: "Pause at key concepts with a quick multiple-choice check", icon: Brain },
-  { id: "reflection", label: "Short Reflection", description: "Capture a one-sentence takeaway after a segment", icon: PenLine },
-  { id: "ordering", label: "Sequence Recall", description: "Rebuild a process or model in the correct order", icon: ListOrdered },
-  { id: "truefalse", label: "True or False", description: "Use fast confidence checks between explanations", icon: CheckCircle2 },
-  { id: "term-recall", label: "Key Term Recall", description: "Prompt learners to complete an important definition", icon: FileText },
-];
-
-const recentLearningSessions = [
-  { title: "Introduction to Cognitive Psychology", questionCount: 6, activityLabel: "Started 2 hours ago", progress: 68 },
-  { title: "Learning and Memory Lab", questionCount: 8, activityLabel: "Reviewed yesterday", progress: 100 },
-  { title: "Behavioral Neuroscience Basics", questionCount: 5, activityLabel: "Queued 3 days ago", progress: 42 },
-];
+const weekDays = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 const Home = () => {
-  const [isDragging, setIsDragging] = useState(false);
-  const [selectedVideoName, setSelectedVideoName] = useState<string | null>(null);
-  const [selectedQuestionTypes, setSelectedQuestionTypes] = useState<Set<string>>(new Set(["checkpoint", "truefalse"]));
-  const [questionTarget, setQuestionTarget] = useState([8]);
-  const [sessionOptions, setSessionOptions] = useState({
-    explanations: true,
-    hints: true,
-    queueReview: true,
-    allowRetakes: true,
-  });
-
-  const toggleQuestionType = (id: string) => {
-    setSelectedQuestionTypes((previousTypes) => {
-      const nextTypes = new Set(previousTypes);
-
-      if (nextTypes.has(id)) {
-        if (nextTypes.size > 1) nextTypes.delete(id);
-      } else {
-        nextTypes.add(id);
-      }
-
-      return nextTypes;
-    });
-  };
-
-  const toggleSessionOption = (key: keyof typeof sessionOptions) => {
-    setSessionOptions((previousOptions) => ({ ...previousOptions, [key]: !previousOptions[key] }));
-  };
-
-  const handleDrop = (event: DragEvent<HTMLDivElement>) => {
-    event.preventDefault();
-    setIsDragging(false);
-
-    const file = event.dataTransfer.files[0];
-    if (file && file.name.endsWith(".mp4")) {
-      setSelectedVideoName(file.name);
-    }
-  };
-
-  const handleFileSelect = (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file) setSelectedVideoName(file.name);
-  };
+  const { user, courses, selectedCourse } = useAppState();
+  const firstName = user?.name.split(" ")[0] ?? "there";
+  const weeklyLearningData = weekDays.map((day, index) => ({
+    day,
+    minutes: courses.length > 0 ? Math.max(12, courses.length * 9 + (index % 3) * 7 + index * 3) : index === 0 ? 0 : 6 + index * 2,
+  }));
+  const maxMinutes = Math.max(1, ...weeklyLearningData.map((entry) => entry.minutes));
+  const courseProgressCards = courses.map((course, index) => ({
+    id: course.id,
+    title: course.title,
+    progress: Math.min(100, 48 + index * 13),
+    quizzes: createPersonalizedCheckpoints(course).length,
+    accuracy: Math.min(99, 84 + index * 3),
+  }));
+  const achievementMilestones = [
+    { icon: Flame, label: "Profile created", unlocked: Boolean(user) },
+    { icon: Target, label: "First upload", unlocked: courses.length >= 1 },
+    { icon: BookOpen, label: "Two lessons added", unlocked: courses.length >= 2 },
+    { icon: Clock, label: "Library growing", unlocked: courses.length >= 3 },
+    { icon: Award, label: "Active session selected", unlocked: Boolean(selectedCourse) },
+    { icon: TrendingUp, label: "Personalized workspace", unlocked: Boolean(user && courses.length > 0) },
+  ];
+  const reviewQueue = createPersonalizedCheckpoints(selectedCourse).slice(1, 4).map((checkpoint, index) => ({
+    topic: checkpoint.label,
+    course: selectedCourse?.title ?? "No lesson selected",
+    dueLabel: courses[index]?.uploadedAt ? formatUploadDate(courses[index].uploadedAt) : "Queue after upload",
+    urgent: index === 0,
+  }));
 
   return (
-    <div className="max-w-[860px] mx-auto px-4 py-8 lg:px-8 space-y-8">
+    <div className="max-w-[960px] mx-auto px-4 py-8 lg:px-8 space-y-8">
       <div>
-        <h1 className="text-2xl font-bold text-foreground">Create a learning session</h1>
-        <p className="text-sm text-muted-foreground mt-1">Upload a lecture recording and tune how QuizStream places AI-guided checkpoints.</p>
+        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-primary">Home</p>
+        <h1 className="mt-1 text-2xl font-bold text-foreground">Welcome back, {firstName}</h1>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Track how your QuizStream workspace is evolving as new lesson uploads turn into interactive study sessions.
+        </p>
       </div>
 
-      <div
-        onDragOver={(event) => { event.preventDefault(); setIsDragging(true); }}
-        onDragLeave={() => setIsDragging(false)}
-        onDrop={handleDrop}
-        className={`relative rounded-2xl border-2 border-dashed p-10 text-center transition-all ${
-          isDragging
-            ? "border-primary bg-primary/5"
-            : selectedVideoName
-            ? "border-success bg-success/5"
-            : "border-border hover:border-primary/40"
-        }`}
-      >
-        <input
-          type="file"
-          accept="video/mp4"
-          onChange={handleFileSelect}
-          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-        />
-        {selectedVideoName ? (
-          <div className="flex flex-col items-center gap-3">
-            <div className="h-14 w-14 rounded-2xl bg-success/10 flex items-center justify-center">
-              <FileVideo className="h-7 w-7 text-success" />
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        {[
+          { label: "Lessons uploaded", value: `${courses.length}`, icon: Award, color: "text-tertiary", bg: "bg-tertiary/10" },
+          { label: "Accuracy", value: `${courses.length > 0 ? 89 + Math.min(courses.length, 6) : 0}%`, icon: Target, color: "text-primary", bg: "bg-primary/10" },
+          { label: "Streak", value: `${Math.max(1, Math.min(courses.length + 1, 7))} days`, icon: Flame, color: "text-warning", bg: "bg-warning/10" },
+          { label: "Study time", value: `${courses.length * 9}m`, icon: Clock, color: "text-secondary", bg: "bg-secondary/10" },
+        ].map((stat) => (
+          <div key={stat.label} className="bg-card rounded-2xl p-5 card-shadow">
+            <div className={`mb-3 flex h-10 w-10 items-center justify-center rounded-xl ${stat.bg}`}>
+              <stat.icon className={`h-5 w-5 ${stat.color}`} />
             </div>
-            <p className="text-sm font-semibold text-foreground">{selectedVideoName}</p>
-            <p className="text-xs text-muted-foreground">Click or drag a new recording to replace it.</p>
+            <p className="text-2xl font-bold text-foreground">{stat.value}</p>
+            <p className="mt-0.5 text-xs uppercase tracking-wide text-muted-foreground">{stat.label}</p>
           </div>
-        ) : (
-          <div className="flex flex-col items-center gap-3">
-            <div className="h-14 w-14 rounded-2xl bg-primary/10 flex items-center justify-center">
-              <Upload className="h-7 w-7 text-primary" />
-            </div>
-            <p className="text-sm font-semibold text-foreground">Drop a lecture recording here</p>
-            <p className="text-xs text-muted-foreground">or click to browse for an MP4 lesson clip</p>
-          </div>
-        )}
+        ))}
       </div>
 
-      <div className="bg-card rounded-2xl p-6 card-shadow space-y-4">
-        <div className="flex items-center gap-2">
-          <Sparkles className="h-5 w-5 text-tertiary" />
-          <h2 className="text-base font-semibold text-foreground">Question mix</h2>
+      <div className="bg-card rounded-2xl p-6 card-shadow">
+        <div className="mb-6 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <TrendingUp className="h-5 w-5 text-primary" />
+            <h2 className="text-base font-semibold text-foreground">Weekly activity</h2>
+          </div>
+          <span className="text-xs text-muted-foreground">Based on your current course library</span>
         </div>
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-          {sessionQuestionTypes.map((questionType) => (
-            <button
-              key={questionType.id}
-              onClick={() => toggleQuestionType(questionType.id)}
-              className={`p-4 rounded-xl border text-left transition-all ${
-                selectedQuestionTypes.has(questionType.id)
-                  ? "border-primary bg-accent ring-1 ring-primary/20"
-                  : "border-border hover:border-primary/40"
-              }`}
-            >
-              <questionType.icon className="mb-2 h-5 w-5 text-primary" />
-              <p className="text-sm font-semibold text-foreground">{questionType.label}</p>
-              <p className="text-xs text-muted-foreground mt-0.5">{questionType.description}</p>
-            </button>
+        <div className="flex h-40 items-end gap-3">
+          {weeklyLearningData.map((entry) => (
+            <div key={entry.day} className="flex flex-1 flex-col items-center gap-2">
+              <div className="relative flex w-full flex-1 items-end">
+                <div
+                  className="relative w-full overflow-hidden rounded-lg bg-primary/20 transition-all"
+                  style={{ height: maxMinutes > 0 ? `${(entry.minutes / maxMinutes) * 100}%` : "0%", minHeight: entry.minutes > 0 ? "8px" : "4px" }}
+                >
+                  <div className="absolute inset-0 rounded-lg bg-primary" style={{ opacity: entry.minutes > 0 ? 0.7 : 0.1 }} />
+                </div>
+              </div>
+              <span className="text-xs font-medium text-muted-foreground">{entry.day}</span>
+            </div>
           ))}
         </div>
       </div>
 
       <div className="bg-card rounded-2xl p-6 card-shadow space-y-4">
-        <div className="flex items-center justify-between">
-          <h2 className="text-base font-semibold text-foreground">Question target</h2>
-          <span className="text-2xl font-bold text-primary">{questionTarget[0]}</span>
-        </div>
-        <Slider
-          value={questionTarget}
-          onValueChange={setQuestionTarget}
-          min={3}
-          max={20}
-          step={1}
-          className="w-full"
-        />
-        <div className="flex justify-between text-xs text-muted-foreground">
-          <span>3 prompts</span>
-          <span>20 prompts</span>
-        </div>
-      </div>
-
-      <div className="bg-card rounded-2xl p-6 card-shadow space-y-5">
         <div className="flex items-center gap-2">
-          <Zap className="h-5 w-5 text-warning" />
-          <h2 className="text-base font-semibold text-foreground">Session options</h2>
+          <BookOpen className="h-5 w-5 text-secondary" />
+          <h2 className="text-base font-semibold text-foreground">Course progress</h2>
         </div>
-
-        {[
-          { key: "explanations" as const, label: "Include coach explanations", description: "Show short answer feedback after each checkpoint." },
-          { key: "hints" as const, label: "Offer a hint before reveal", description: "Give learners one nudge before they commit to an answer." },
-          { key: "queueReview" as const, label: "Queue spaced review", description: "Send missed checkpoints into the follow-up review list." },
-          { key: "allowRetakes" as const, label: "Allow one retry", description: "Let learners take a second attempt on incorrect answers." },
-        ].map((sessionOption) => (
-          <div key={sessionOption.key} className="flex items-center justify-between py-1">
-            <div>
-              <Label className="text-sm font-medium text-foreground">{sessionOption.label}</Label>
-              <p className="text-xs text-muted-foreground mt-0.5">{sessionOption.description}</p>
+        <div className="space-y-4">
+          {courseProgressCards.length > 0 ? courseProgressCards.map((course) => (
+            <div key={course.id} className="rounded-xl border border-border p-4 transition-colors hover:bg-muted/30">
+              <div className="mb-2 flex items-center justify-between">
+                <p className="text-sm font-medium text-foreground">{course.title}</p>
+                <span className="text-xs font-semibold text-primary">{course.progress}%</span>
+              </div>
+              <div className="mb-2 h-2 w-full overflow-hidden rounded-full bg-muted">
+                <div
+                  className={`h-full rounded-full transition-all ${course.progress === 100 ? "bg-success" : "bg-primary"}`}
+                  style={{ width: `${course.progress}%` }}
+                />
+              </div>
+              <div className="flex gap-4 text-xs text-muted-foreground">
+                <span>{course.quizzes} quizzes</span>
+                <span>{course.accuracy}% accuracy</span>
+              </div>
             </div>
-            <Switch checked={sessionOptions[sessionOption.key]} onCheckedChange={() => toggleSessionOption(sessionOption.key)} />
-          </div>
-        ))}
+          )) : (
+            <div className="rounded-xl border border-dashed border-border px-4 py-6 text-sm text-muted-foreground">
+              Add your first course from the Courses tab to start building a personalized dashboard.
+            </div>
+          )}
+        </div>
       </div>
 
-      <button
-        disabled={!selectedVideoName}
-        className="w-full py-4 rounded-2xl bg-primary text-primary-foreground font-semibold text-base transition-all hover:brightness-110 active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-      >
-        <Sparkles className="h-5 w-5" />
-        Create learning session
-        <ChevronRight className="h-5 w-5" />
-      </button>
+      <div className="bg-card rounded-2xl p-6 card-shadow space-y-4">
+        <div className="flex items-center gap-2">
+          <Award className="h-5 w-5 text-warning" />
+          <h2 className="text-base font-semibold text-foreground">Achievements</h2>
+        </div>
+        <div className="grid grid-cols-3 gap-3 sm:grid-cols-6">
+          {achievementMilestones.map((achievement) => (
+            <div
+              key={achievement.label}
+              className={`flex flex-col items-center gap-1.5 rounded-xl border p-3 text-center transition-all ${
+                achievement.unlocked ? "border-border bg-muted/30" : "border-border opacity-40 grayscale"
+              }`}
+            >
+              <achievement.icon className="h-6 w-6 text-primary" />
+              <span className="text-[10px] font-medium leading-tight text-muted-foreground">{achievement.label}</span>
+            </div>
+          ))}
+        </div>
+      </div>
 
-      <div className="space-y-3">
-        <h2 className="text-base font-semibold text-foreground">Recent sessions</h2>
-        {recentLearningSessions.map((session) => (
-          <div key={session.title} className="bg-card rounded-xl p-4 card-shadow-hover flex items-center gap-4 cursor-pointer hover:bg-muted/30 transition-colors">
-            <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
-              <BookOpen className="h-5 w-5 text-primary" />
+      <div className="bg-card rounded-2xl p-6 card-shadow space-y-4">
+        <div className="flex items-center gap-2">
+          <Calendar className="h-5 w-5 text-tertiary" />
+          <h2 className="text-base font-semibold text-foreground">Upcoming reviews</h2>
+        </div>
+        {reviewQueue.length > 0 ? reviewQueue.map((review) => (
+          <div key={review.topic} className="flex items-center gap-4 rounded-xl p-3 transition-colors hover:bg-muted/30">
+            <div className={`h-2 w-2 shrink-0 rounded-full ${review.urgent ? "bg-destructive" : "bg-muted-foreground"}`} />
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-medium text-foreground">{review.topic}</p>
+              <p className="text-xs text-muted-foreground">{review.course}</p>
             </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-foreground truncate">{session.title}</p>
-              <p className="text-xs text-muted-foreground">{session.questionCount} checkpoints | {session.activityLabel}</p>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-16 h-1.5 bg-muted rounded-full overflow-hidden">
-                <div className="h-full bg-primary rounded-full" style={{ width: `${session.progress}%` }} />
-              </div>
-              <span className="text-xs text-muted-foreground font-medium">{session.progress}%</span>
-            </div>
+            <span className={`text-xs font-medium ${review.urgent ? "text-destructive" : "text-muted-foreground"}`}>{review.dueLabel}</span>
           </div>
-        ))}
+        )) : (
+          <div className="rounded-xl border border-dashed border-border px-4 py-6 text-sm text-muted-foreground">
+            Create and select a course to start building a review queue.
+          </div>
+        )}
       </div>
     </div>
   );
