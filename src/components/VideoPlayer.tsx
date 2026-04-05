@@ -229,7 +229,6 @@ const VideoPlayer = ({
     setHasSubmitted(true);
     const isCorrect = selectedAnswer === activeQuiz.correctIndex;
     
-    // FIX: Add `: Checkpoint` right here to strictly type the returned object
     const updatedCheckpoints = localCheckpoints.map((cp): Checkpoint => 
       cp.id === activeQuiz.id 
         ? { ...cp, status: isCorrect ? "completed" : "incorrect" } 
@@ -245,20 +244,6 @@ const VideoPlayer = ({
     setTimeout(() => { if (videoRef.current) onPlayingChange(true); }, 100);
   };
 
-  // const jumpToAnswerMoment = () => {
-  //   if (!activeQuiz) return;
-  //
-  //   const targetTime = activeQuiz.answerTime ?? activeQuiz.time;
-  //   const boundedTime = Math.max(0, Math.min(targetTime, duration || targetTime));
-  //
-  //   if (videoRef.current && Number.isFinite(boundedTime)) {
-  //     videoRef.current.currentTime = boundedTime;
-  //   }
-  //
-  //   onTimeUpdate(boundedTime);
-  //   resetQuizState();
-  //   setTimeout(() => { if (videoRef.current) onPlayingChange(true); }, 100);
-  // };
 
   const minimizeQuiz = () => {
     if (hasSubmitted) {

@@ -7,13 +7,12 @@ import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import FormData from "form-data";
-import { TwelveLabs } from "twelvelabs-js"; // ADD THIS
+import { TwelveLabs } from "twelvelabs-js";
 import crypto from "crypto";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
 dotenv.config();
 
-// Initialize the client
 
 const client = new TwelveLabs({ apiKey: process.env.TWELVE_LABS_API_KEY });
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_GEMINI_API_KEY);
@@ -29,7 +28,7 @@ const app = express();
 // Middleware
 app.use(
   cors({
-    origin: true, // This automatically reflects the requesting origin perfectly
+    origin: true,
     credentials: true,
   }),
 );
@@ -39,7 +38,6 @@ app.use(express.urlencoded({ limit: "50mb" }));
 // Multer for video uploads
 const upload = multer({ dest: "uploads/" });
 
-// ============ SIMPLE JSON DATABASE ============
 const DB_PATH = path.join(__dirname, "database.json");
 
 // 1. Load existing data when the server boots up
@@ -53,7 +51,6 @@ if (fs.existsSync(DB_PATH)) {
   fileHashes = savedData.fileHashes || {};
 }
 
-// 2. Helper function to permanently save changes to the hard drive
 function saveDatabase() {
   fs.writeFileSync(DB_PATH, JSON.stringify({ quizData, fileHashes }, null, 2));
 }
@@ -436,20 +433,16 @@ app.post("/api/upload-video", upload.single("video"), async (req, res) => {
 
     console.log(`🚀 Checking file: ${fileName}`);
 
-    // 1. Calculate the digital fingerprint of the file
     const fileFingerprint = await getFileHash(videoPath);
 
-    // 2. Did we already upload this exact video?
     if (fileHashes[fileFingerprint]) {
       const existingVideoId = fileHashes[fileFingerprint];
       const existingData = quizData[existingVideoId];
 
       console.log(`⚡ Video already exists! Skipping Twelve Labs upload.`);
 
-      // Delete the redundant file we just saved to the uploads folder
       fs.unlinkSync(videoPath);
 
-      // Send back the existing data instantly
       return res.json({
         success: true,
         videoId: existingVideoId,
@@ -458,7 +451,6 @@ app.post("/api/upload-video", upload.single("video"), async (req, res) => {
       });
     }
 
-    // 3. If it is a brand new video, proceed with upload
     const videoId = `video_${Date.now()}`;
     console.log(`Uploading NEW video to Twelve Labs...`);
 
@@ -471,19 +463,16 @@ app.post("/api/upload-video", upload.single("video"), async (req, res) => {
     const taskId = task.id;
     console.log(`✅ Video uploaded successfully! Task ID: ${taskId}`);
 
-    // Store video info
     quizData[videoId] = {
       videoId,
       taskId,
       fileName,
       uploadedAt: new Date(),
-      localPath: videoPath, // Keep this one for streaming!
+      localPath: videoPath,
     };
 
-    // 4. Save the fingerprint so we remember it next time!
     fileHashes[fileFingerprint] = videoId;
 
-    // NEW: Save the memory to the hard drive!
     saveDatabase();
 
     res.json({ success: true, videoId, fileName, taskId });
@@ -493,17 +482,14 @@ app.post("/api/upload-video", upload.single("video"), async (req, res) => {
   }
 });
 
-// Add this to your server.js
 app.get("/api/videos", (req, res) => {
   try {
-    // Transform our quizData object into an array for the frontend
     const videos = Object.values(quizData).map((video) => ({
       id: video.videoId,
       title: video.fileName,
       filename: video.fileName,
       videoUrl: `http://localhost:5001/api/video/${video.videoId}`,
       uploadedAt: video.uploadedAt,
-      // Pass along the quiz count if it exists
       quizCount: Array.isArray(video.quizzes) ? video.quizzes.length : 0,
     }));
 
@@ -513,19 +499,17 @@ app.get("/api/videos", (req, res) => {
   }
 });
 
-// Add to server.js
 app.delete("/api/videos/:videoId", (req, res) => {
   const { videoId } = req.params;
 
   if (quizData[videoId]) {
-    // Find the hash associated with this video to remove it from fileHashes too
     const hashToRemove = Object.keys(fileHashes).find(
       (hash) => fileHashes[hash] === videoId,
     );
     if (hashToRemove) delete fileHashes[hashToRemove];
 
     delete quizData[videoId];
-    saveDatabase(); // Persist the deletion to database.json
+    saveDatabase();
     console.log(`🗑️ Deleted video: ${videoId}`);
     res.json({ success: true, id: videoId });
   } else {
@@ -533,15 +517,12 @@ app.delete("/api/videos/:videoId", (req, res) => {
   }
 });
 
-// ============ CHECK TWELVE LABS TASK STATUS ============
 app.get("/api/task-status/:taskId", async (req, res) => {
   try {
     const { taskId } = req.params;
 
-    // FIX: Use client.tasks (plural)
     const task = await client.tasks.retrieve(taskId);
 
-    // Twelve Labs returns status as "pending", "indexing", "ready", or "failed"
     res.json({ success: true, status: task.status });
   } catch (error) {
     console.error("Task status error:", error.message);
@@ -549,7 +530,6 @@ app.get("/api/task-status/:taskId", async (req, res) => {
   }
 });
 
-// ============ GENERATE QUIZ ============
 app.post("/api/generate-quiz", async (req, res) => {
   try {
     const { videoId, prompt, numQuestions } = req.body;
@@ -560,23 +540,20 @@ app.post("/api/generate-quiz", async (req, res) => {
 
     console.log(`Generating quiz for video: ${videoId}`);
 
-    // 1. Get the actual Twelve Labs Video ID from the completed task!
     const task = await client.tasks.retrieve(quizData[videoId].taskId);
     const tlVideoId = task.videoId;
 
-    // 2. Use the official SDK to search ONLY this specific video
     const searchResults = await client.search.query({
       indexId: process.env.TWELVE_LABS_INDEX_ID,
       queryText: prompt,
       options: ["visual", "conversation"],
       filter: {
-        id: [tlVideoId], // Restricts the search to the video we just uploaded
+        id: [tlVideoId],
       },
     });
 
     const results = searchResults.data || [];
 
-    // 3. Extract timestamps. If no results, space them out evenly as a fallback.
     let timestamps = [];
     if (results.length > 0) {
       timestamps = results.slice(0, numQuestions).map((result) => ({
@@ -596,7 +573,6 @@ app.post("/api/generate-quiz", async (req, res) => {
       `Found ${timestamps.length} moments in the video! Sending to Gemini...`,
     );
 
-    // Store quiz data
     quizData[videoId].quizzes = quizzes;
 
     res.json({ success: true, quizzes, videoId });
@@ -606,10 +582,8 @@ app.post("/api/generate-quiz", async (req, res) => {
   }
 });
 
-// ============ AI PIPELINE: TWELVE LABS -> GEMINI ============
 app.post("/api/analyze-video", async (req, res) => {
   try {
-    // 1. Extract questionCount from the frontend request!
     const { videoId, geminiPrompt, questionCount } = req.body;
 
     if (!quizData[videoId]) {
@@ -631,7 +605,6 @@ app.post("/api/analyze-video", async (req, res) => {
       `1️⃣ Asking Twelve Labs to extract enough info for ${questionCount} questions...`,
     );
 
-    // Answer-specific extraction is intentionally disabled for now.
     const tlGeneration = await client.analyze({
       videoId: tlVideoId,
       prompt: `Create a structured timeline of the most important information covered in this video.
@@ -660,10 +633,8 @@ Make sure there are at least ${questionCount} distinct key moments so another mo
 
     console.log("✅ Gemini Processing Complete!");
 
-    // Save only normalized checkpoint objects.
     quizData[videoId].quizzes = finalGeminiOutput;
 
-    // NEW: Save it permanently to the hard drive!
     saveDatabase();
 
     res.json({
@@ -683,7 +654,6 @@ Make sure there are at least ${questionCount} distinct key moments so another mo
   }
 });
 
-// ============ GEMINI HELPER ============
 async function processWithGemini(twelveLabsSummary, userPrompt, questionCount) {
   try {
     const summaryText = toSummaryText(twelveLabsSummary);
@@ -698,7 +668,6 @@ async function processWithGemini(twelveLabsSummary, userPrompt, questionCount) {
       );
     }
 
-    // Answer reveal fields are intentionally disabled for now.
     const prompt = `You are an expert educational assistant.
 
 You will receive a timeline summary of a video.
@@ -740,10 +709,6 @@ ${userPrompt || `Create ${Number(questionCount) || 3} high-quality multiple-choi
     const rawText = await runGeminiPrompt(prompt, modelsToTry);
     const draftCheckpoints = parseGeminiCheckpoints(rawText, timelineAnchors);
     return draftCheckpoints;
-    // return await polishCheckpointAnswersWithFallback(
-    //   draftCheckpoints,
-    //   summaryText,
-    // );
   } catch (error) {
     if (error instanceof InvalidGeminiOutputError) {
       throw error;
@@ -830,81 +795,7 @@ function shouldFallbackToNextGeminiModel(error) {
   ].some((fragment) => message.includes(fragment));
 }
 
-// async function polishCheckpointAnswersWithFallback(checkpoints, summaryText) {
-//   const fallbackModels = resolveFallbackPreferredGeminiModels(
-//     DEFAULT_GEMINI_FALLBACK_MODELS,
-//     "gemini-2.5-flash",
-//   );
-//
-//   const answerPrompt = `You are improving the answer reveal copy for a study quiz.
-//
-// Return ONLY valid JSON. No markdown, no prose, no code fences.
-//
-// Required output format:
-// [
-//   {
-//     "id": "checkpoint-1",
-//     "answer": "A concise student-friendly explanation of the correct answer."
-//   }
-// ]
-//
-// Rules:
-// - Keep the same number of items and the same ids.
-// - Rewrite only the 'answer' field.
-// - Each answer should be 1-2 sentences max.
-// - Use natural student-friendly wording.
-// - Do not mention option letters.
-// - Do not introduce facts that are not supported by the timeline summary.
-//
-// Video timeline summary:
-// """
-// ${summaryText}
-// """
-//
-// Checkpoints:
-// ${JSON.stringify(
-//     checkpoints.map((checkpoint) => ({
-//       id: checkpoint.id,
-//       question: checkpoint.question,
-//       correctOption: checkpoint.options[checkpoint.correctIndex],
-//       answer: checkpoint.answer,
-//       answerTimestamp: checkpoint.answerTimestamp,
-//     })),
-//     null,
-//     2,
-//   )}`;
-//
-//   try {
-//     const rawText = await runGeminiPrompt(answerPrompt, fallbackModels);
-//     const payload = extractJsonPayload(rawText);
-//
-//     if (!Array.isArray(payload) || payload.length !== checkpoints.length) {
-//       throw new InvalidGeminiOutputError(
-//         "Gemini returned an invalid answer rewrite payload.",
-//       );
-//     }
-//
-//     const answersById = new Map(
-//       payload.map((item) => [
-//         item?.id,
-//         typeof item?.answer === "string" ? item.answer.trim() : "",
-//       ]),
-//     );
-//
-//     return checkpoints.map((checkpoint) => ({
-//       ...checkpoint,
-//       answer: answersById.get(checkpoint.id) || checkpoint.answer,
-//     }));
-//   } catch (error) {
-//     console.warn(
-//       "Gemini answer polishing failed, falling back to the draft answers.",
-//       error?.message || error,
-//     );
-//     return checkpoints;
-//   }
-// }
 
-// ============ GET QUIZ DATA ============
 app.get("/api/quiz/:videoId", (req, res) => {
   try {
     const { videoId } = req.params;
@@ -949,7 +840,6 @@ app.get("/api/quiz/:videoId", (req, res) => {
   }
 });
 
-// ============ GET QUIZ STATUS ============
 app.get("/api/quiz-status/:videoId", (req, res) => {
   try {
     const { videoId } = req.params;
@@ -972,7 +862,6 @@ app.get("/api/quiz-status/:videoId", (req, res) => {
   }
 });
 
-// ============ SERVE VIDEO ============
 app.get("/api/video/:videoId", (req, res) => {
   try {
     const { videoId } = req.params;

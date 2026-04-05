@@ -16,7 +16,6 @@ const Watch = () => {
   const [checkpoints, setCheckpoints] = useState<Checkpoint[]>([]);
   const [fileName, setFileName] = useState("Video Lesson");
 
-  // -- NEW: Added state for the advanced VideoPlayer --
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -85,8 +84,7 @@ const Watch = () => {
         videoId={videoId}
         lessonTitle={fileName}
         lessonSubtitle="AI Generated Quiz"
-        // NEW: Providing the missing props to satisfy TypeScript!
-        videoUrl={null} // Null forces it to use the videoId backend route
+        videoUrl={null} 
         currentTime={currentTime}
         duration={duration}
         isPlaying={isPlaying}
