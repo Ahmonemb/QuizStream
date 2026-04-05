@@ -288,11 +288,157 @@
           "status": "upcoming"
         }
       ]
+    },
+    "video_1775408989769": {
+      "videoId": "video_1775408989769",
+      "taskId": "69d2975e711f36db761a677d",
+      "fileName": "YTDown.com_YouTube_ALL-of-calculus-3-in-8-minutes_Media_5kwz7ajxfyA_001_720p.mp4",
+      "uploadedAt": "2026-04-05T17:09:51.442Z",
+      "localPath": "uploads/28c631d64fdfaa2e8edf475e6dd34e12",
+      "quizzes": [
+        {
+          "id": "checkpoint-1",
+          "time": 31,
+          "label": "3D Functions",
+          "question": "How are 3D functions typically mapped in multivariable calculus?",
+          "options": [
+            "Inputs from the x and y axes to outputs on the z axis",
+            "Inputs from the z axis to outputs on the x and y axes",
+            "Inputs from the x axis to outputs on the y axis",
+            "Scalar inputs to three-dimensional vector outputs"
+          ],
+          "correctIndex": 0,
+          "answer": "Inputs from the x and y axes to outputs on the z axis",
+          "answerTime": 31,
+          "answerTimestamp": "0:31",
+          "status": "upcoming"
+        },
+        {
+          "id": "checkpoint-2",
+          "time": 75,
+          "label": "Dot Product Properties",
+          "question": "What is the result of the dot product for two orthogonal vectors?",
+          "options": [
+            "The product of their magnitudes",
+            "One",
+            "Zero",
+            "A vector orthogonal to both"
+          ],
+          "correctIndex": 2,
+          "answer": "Zero",
+          "answerTime": 75,
+          "answerTimestamp": "1:15",
+          "status": "upcoming"
+        },
+        {
+          "id": "checkpoint-3",
+          "time": 115,
+          "label": "Cross Product",
+          "question": "What geometric property does the cross product of two vectors possess?",
+          "options": [
+            "It is parallel to the input vectors",
+            "It is orthogonal to the two input vectors",
+            "It represents the sum of the vector magnitudes",
+            "It results in a scalar value"
+          ],
+          "correctIndex": 1,
+          "answer": "It is orthogonal to the two input vectors",
+          "answerTime": 115,
+          "answerTimestamp": "1:55",
+          "status": "upcoming"
+        },
+        {
+          "id": "checkpoint-4",
+          "time": 165,
+          "label": "Gradient Vector",
+          "question": "How is the gradient vector defined in the context of multivariable derivatives?",
+          "options": [
+            "As a combination of partial derivatives",
+            "As the limit of a function approaching the origin",
+            "As the dot product of x and y",
+            "As the volume under a surface"
+          ],
+          "correctIndex": 0,
+          "answer": "As a combination of partial derivatives",
+          "answerTime": 165,
+          "answerTimestamp": "2:45",
+          "status": "upcoming"
+        },
+        {
+          "id": "checkpoint-5",
+          "time": 250,
+          "label": "Polar Coordinates",
+          "question": "When using polar coordinates for double integrals, what is the adjusted transformation for the differential area element?",
+          "options": [
+            "dx dy",
+            "dr dθ",
+            "r dr dθ",
+            "r² dr dθ"
+          ],
+          "correctIndex": 2,
+          "answer": "r dr dθ",
+          "answerTime": 250,
+          "answerTimestamp": "4:10",
+          "status": "upcoming"
+        },
+        {
+          "id": "checkpoint-6",
+          "time": 280,
+          "label": "Spherical Coordinates",
+          "question": "Which set of variables represents the spherical coordinate system?",
+          "options": [
+            "r, θ, z",
+            "ρ, φ, θ",
+            "x, y, z",
+            "r, h, θ"
+          ],
+          "correctIndex": 1,
+          "answer": "ρ, φ, θ",
+          "answerTime": 280,
+          "answerTimestamp": "4:40",
+          "status": "upcoming"
+        },
+        {
+          "id": "checkpoint-7",
+          "time": 320,
+          "label": "The Jacobian",
+          "question": "What is the primary purpose of the Jacobian in multivariable integration?",
+          "options": [
+            "To calculate the limit of a 3D function",
+            "To serve as a correction factor for distortion during coordinate changes",
+            "To determine if a vector field is conservative",
+            "To compute the cross product using determinants"
+          ],
+          "correctIndex": 1,
+          "answer": "To serve as a correction factor for distortion during coordinate changes",
+          "answerTime": 320,
+          "answerTimestamp": "5:20",
+          "status": "upcoming"
+        },
+        {
+          "id": "checkpoint-8",
+          "time": 450,
+          "label": "Vector Field Properties",
+          "question": "In a vector field, what does the property of 'divergence' represent?",
+          "options": [
+            "The intensity of rotation",
+            "The work done on a particle",
+            "The rate of outflow",
+            "The magnitude of the gradient"
+          ],
+          "correctIndex": 2,
+          "answer": "The rate of outflow",
+          "answerTime": 450,
+          "answerTimestamp": "7:30",
+          "status": "upcoming"
+        }
+      ]
     }
   },
   "fileHashes": {
     "a26957df96df7f8fffb767e8b89536c8e234bb11dfebff5b91a2c1a9f4f486a3": "video_1775383122759",
     "6fec92ed4f855822cd140b1ba25625e426ee2ef8aed08b264e0501d0ba20e79a": "video_1775387875466",
-    "d6bf93aa39a2ec0a4b542f5e879b58510dc8e8e2724095b287146573b49f73f8": "video_1775402304783"
+    "d6bf93aa39a2ec0a4b542f5e879b58510dc8e8e2724095b287146573b49f73f8": "video_1775402304783",
+    "d5fa15b51e6c38f6103c2f6835d4115c8e2faaf10b3405b93f25deeea9f3d561": "video_1775408989769"
   }
 }

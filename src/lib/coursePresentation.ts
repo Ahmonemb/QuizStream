@@ -101,6 +101,18 @@ export const formatDurationLabel = (seconds: number) => {
   return `${Math.round(seconds)}s`;
 };
 
+const formatCheckpointTimestamp = (seconds: number) => {
+  if (!Number.isFinite(seconds) || seconds < 0) {
+    return "0:00";
+  }
+
+  const roundedSeconds = Math.round(seconds);
+  const minutes = Math.floor(roundedSeconds / 60);
+  const remainingSeconds = roundedSeconds % 60;
+
+  return `${minutes}:${remainingSeconds.toString().padStart(2, "0")}`;
+};
+
 export function createPersonalizedCheckpoints(
   course: CourseRecord | null,
   duration = 540,
@@ -125,14 +137,19 @@ export function createPersonalizedCheckpoints(
     const profile =
       questionTypeProfiles[questionTypeId] ?? questionTypeProfiles.checkpoint;
     const ratio = (index + 1) / (checkpointCount + 1);
+    const options = profile.options(course.title);
+    const checkpointTime = Math.max(Math.round(safeDuration * ratio), safeDuration + 25);
 
     return {
       id: `${course.id}-${questionTypeId}-${index + 1}`,
-      time: Math.max(Math.round(safeDuration * ratio), safeDuration + 25),
+      time: checkpointTime,
       label: `${profile.label} ${index + 1}`,
       question: applyQuestionOptions(profile.question(course.title), quizSetup),
-      options: profile.options(course.title),
+      options,
       correctIndex: profile.correctIndex,
+      answer: options[profile.correctIndex] ?? "Review the main idea from this checkpoint.",
+      answerTime: checkpointTime,
+      answerTimestamp: formatCheckpointTimestamp(checkpointTime),
       status: index === 0 ? "active" : "upcoming",
     };
   });

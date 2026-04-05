@@ -7,6 +7,9 @@ export interface Checkpoint {
   question: string;
   options: string[];
   correctIndex: number;
+  answer: string;
+  answerTime: number;
+  answerTimestamp: string;
   status: "upcoming" | "active" | "completed" | "incorrect";
 }
 

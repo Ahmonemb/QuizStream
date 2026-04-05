@@ -172,6 +172,13 @@ const VideoPlayer = ({
     onTimeUpdate(boundedTime);
   };
 
+  const resetQuizState = () => {
+    setActiveQuiz(null);
+    setSelectedAnswer(null);
+    setHasSubmitted(false);
+    setIsQuizMinimized(false);
+  };
+
   const handleTimelineClick = (event: MouseEvent<HTMLDivElement>) => {
     if (!timelineRef.current || duration <= 0 || isQuizVisible) return;
     const timelineBounds = timelineRef.current.getBoundingClientRect();
@@ -187,12 +194,16 @@ const VideoPlayer = ({
   const handleTimeUpdateInternal = (event: React.SyntheticEvent<HTMLVideoElement>) => {
     const current = event.currentTarget.currentTime;
     onTimeUpdate(current);
+    const hasDismissedAnsweredQuiz = Boolean(activeQuiz) && isQuizMinimized && hasSubmitted;
+    const canOpenNextQuiz = !activeQuiz || hasDismissedAnsweredQuiz;
 
     // Trigger quiz logic
     const triggeredQuiz = localCheckpoints.find((cp) => cp.status === "upcoming" && Math.abs(current - cp.time) < 0.5);
-    if (triggeredQuiz && !activeQuiz) {
+    if (triggeredQuiz && canOpenNextQuiz) {
       onPlayingChange(false);
       setActiveQuiz(triggeredQuiz);
+      setSelectedAnswer(null);
+      setHasSubmitted(false);
       setIsQuizMinimized(false);
       return;
     }
@@ -204,9 +215,11 @@ const VideoPlayer = ({
         cp.time >= duration &&
         current >= duration - 0.5,
     );
-    if (endOfVideoQuiz && !activeQuiz) {
+    if (endOfVideoQuiz && canOpenNextQuiz) {
       onPlayingChange(false);
       setActiveQuiz({ ...endOfVideoQuiz, time: duration });
+      setSelectedAnswer(null);
+      setHasSubmitted(false);
       setIsQuizMinimized(false);
     }
   };
@@ -228,14 +241,31 @@ const VideoPlayer = ({
   };
 
   const continueVideo = () => {
-    setActiveQuiz(null);
-    setSelectedAnswer(null);
-    setHasSubmitted(false);
-    setIsQuizMinimized(false);
+    resetQuizState();
     setTimeout(() => { if (videoRef.current) onPlayingChange(true); }, 100);
   };
 
+  // const jumpToAnswerMoment = () => {
+  //   if (!activeQuiz) return;
+  //
+  //   const targetTime = activeQuiz.answerTime ?? activeQuiz.time;
+  //   const boundedTime = Math.max(0, Math.min(targetTime, duration || targetTime));
+  //
+  //   if (videoRef.current && Number.isFinite(boundedTime)) {
+  //     videoRef.current.currentTime = boundedTime;
+  //   }
+  //
+  //   onTimeUpdate(boundedTime);
+  //   resetQuizState();
+  //   setTimeout(() => { if (videoRef.current) onPlayingChange(true); }, 100);
+  // };
+
   const minimizeQuiz = () => {
+    if (hasSubmitted) {
+      continueVideo();
+      return;
+    }
+
     setIsQuizMinimized(true);
   };
 
@@ -371,9 +401,31 @@ const VideoPlayer = ({
                   Check Answer
                 </button>
               ) : (
-                <button onClick={continueVideo} className="w-full py-3 rounded-xl bg-foreground text-background font-semibold transition-all hover:brightness-110">
-                  Continue Video
-                </button>
+                <>
+                  <button onClick={continueVideo} className="w-full py-3 rounded-xl bg-foreground text-background font-semibold transition-all hover:brightness-110">
+                    Continue Video
+                  </button>
+                  {/* <div className="space-y-4">
+                    <div className="rounded-2xl border border-border bg-muted/30 p-4">
+                      <div className="mb-2 flex items-center justify-between gap-3">
+                        <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Answer</span>
+                        <button
+                          type="button"
+                          onClick={jumpToAnswerMoment}
+                          className="rounded-full border border-border bg-background px-3 py-1 text-xs font-semibold text-primary transition-colors hover:border-primary/40 hover:text-primary"
+                        >
+                          Jump to {activeQuiz.answerTimestamp || formatTime(activeQuiz.answerTime ?? activeQuiz.time)}
+                        </button>
+                      </div>
+                      <p className="text-sm leading-6 text-foreground">
+                        {activeQuiz.answer || activeQuiz.options[activeQuiz.correctIndex]}
+                      </p>
+                    </div>
+                    <button onClick={continueVideo} className="w-full py-3 rounded-xl bg-foreground text-background font-semibold transition-all hover:brightness-110">
+                      Continue Video
+                    </button>
+                  </div> */}
+                </>
               )}
             </div>
           </div>
