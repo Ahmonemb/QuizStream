@@ -53,6 +53,7 @@ const VideoPlayer = ({
   // -- AI Internal State --
   const [localCheckpoints, setLocalCheckpoints] = useState<Checkpoint[]>(initialCheckpoints);
   const [activeQuiz, setActiveQuiz] = useState<Checkpoint | null>(null);
+  const [deferredQuizzes, setDeferredQuizzes] = useState<Checkpoint[]>([]);
   const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
   const [hasSubmitted, setHasSubmitted] = useState(false);
   const [isQuizMinimized, setIsQuizMinimized] = useState(false);
@@ -70,6 +71,13 @@ const VideoPlayer = ({
 
   useEffect(() => {
     setLocalCheckpoints(initialCheckpoints);
+    setDeferredQuizzes((previousQuizzes) =>
+      previousQuizzes
+        .map((queuedQuiz) =>
+          initialCheckpoints.find((checkpoint) => checkpoint.id === queuedQuiz.id) ?? queuedQuiz,
+        )
+        .filter((queuedQuiz) => queuedQuiz.status === "upcoming"),
+    );
   }, [initialCheckpoints]);
 
   useEffect(() => {
@@ -172,6 +180,23 @@ const VideoPlayer = ({
     onTimeUpdate(boundedTime);
   };
 
+  const activateQuiz = (quiz: Checkpoint) => {
+    setActiveQuiz(quiz);
+    setSelectedAnswer(null);
+    setHasSubmitted(false);
+    setIsQuizMinimized(false);
+  };
+
+  const queueQuiz = (quiz: Checkpoint) => {
+    setDeferredQuizzes((previousQuizzes) => {
+      if (previousQuizzes.some((queuedQuiz) => queuedQuiz.id === quiz.id)) {
+        return previousQuizzes;
+      }
+
+      return [...previousQuizzes, quiz];
+    });
+  };
+
   const resetQuizState = () => {
     setActiveQuiz(null);
     setSelectedAnswer(null);
@@ -194,17 +219,16 @@ const VideoPlayer = ({
   const handleTimeUpdateInternal = (event: React.SyntheticEvent<HTMLVideoElement>) => {
     const current = event.currentTarget.currentTime;
     onTimeUpdate(current);
-    const hasDismissedAnsweredQuiz = Boolean(activeQuiz) && isQuizMinimized && hasSubmitted;
-    const canOpenNextQuiz = !activeQuiz || hasDismissedAnsweredQuiz;
+    const canOpenNextQuiz = !activeQuiz || isQuizMinimized;
 
     // Trigger quiz logic
     const triggeredQuiz = localCheckpoints.find((cp) => cp.status === "upcoming" && Math.abs(current - cp.time) < 0.5);
     if (triggeredQuiz && canOpenNextQuiz) {
       onPlayingChange(false);
-      setActiveQuiz(triggeredQuiz);
-      setSelectedAnswer(null);
-      setHasSubmitted(false);
-      setIsQuizMinimized(false);
+      if (activeQuiz && isQuizMinimized && !hasSubmitted) {
+        queueQuiz(activeQuiz);
+      }
+      activateQuiz(triggeredQuiz);
       return;
     }
 
@@ -217,10 +241,10 @@ const VideoPlayer = ({
     );
     if (endOfVideoQuiz && canOpenNextQuiz) {
       onPlayingChange(false);
-      setActiveQuiz({ ...endOfVideoQuiz, time: duration });
-      setSelectedAnswer(null);
-      setHasSubmitted(false);
-      setIsQuizMinimized(false);
+      if (activeQuiz && isQuizMinimized && !hasSubmitted) {
+        queueQuiz(activeQuiz);
+      }
+      activateQuiz({ ...endOfVideoQuiz, time: duration });
     }
   };
 
@@ -266,11 +290,20 @@ const VideoPlayer = ({
       return;
     }
 
-    setIsQuizMinimized(true);
+    if (!activeQuiz) {
+      return;
+    }
+
+    queueQuiz(activeQuiz);
+    resetQuizState();
   };
 
   const reopenQuiz = () => {
-    setIsQuizMinimized(false);
+    const [nextQuiz, ...remainingQuizzes] = deferredQuizzes;
+    if (nextQuiz) {
+      setDeferredQuizzes(remainingQuizzes);
+      activateQuiz(nextQuiz);
+    }
   };
 
   const handlePlayPause = () => {
@@ -431,18 +464,20 @@ const VideoPlayer = ({
           </div>
         )}
 
-        {activeQuiz && isQuizMinimized && (
+        {deferredQuizzes.length > 0 && (
           <div className="absolute right-3 top-3 z-30 pointer-events-auto" onClick={(e) => e.stopPropagation()}>
             <button
               type="button"
               onClick={reopenQuiz}
               className="inline-flex max-w-[calc(100vw-3rem)] items-center gap-2 rounded-full border border-white/15 bg-black/55 px-2.5 py-2 text-xs font-semibold text-white shadow-lg backdrop-blur-md transition-all hover:bg-black/75 hover:shadow-xl focus:outline-none focus:ring-2 focus:ring-white/70"
-              aria-label={`Resume ${activeQuiz.label}`}
+              aria-label={`Resume ${deferredQuizzes.length} deferred question${deferredQuizzes.length === 1 ? "" : "s"}`}
             >
               <span className="flex h-7 w-7 items-center justify-center rounded-full bg-primary/90 text-primary-foreground">
                 <MessageSquareText className="h-3.5 w-3.5" />
               </span>
-              <span className="truncate pr-1">Resume question</span>
+              <span className="truncate pr-1">
+                {deferredQuizzes.length === 1 ? "Resume question" : `Resume ${deferredQuizzes.length} questions`}
+              </span>
             </button>
           </div>
         )}
