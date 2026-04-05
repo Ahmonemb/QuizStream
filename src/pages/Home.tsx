@@ -156,35 +156,60 @@ const Home = () => {
     }
   };
 
+  // ==========================================
+  // HELPER FUNCTION: Called only when AI is ready
+  // ==========================================
   const generateQuizQuestions = async (currentVideoId: string) => {
     try {
-      const quizRes = await fetch('http://localhost:5001/api/generate-quiz', {
+      setStatusText("Analyzing video concepts and writing questions...");
+
+      // 1. Call your new AI Chain route!
+      const response = await fetch('http://localhost:5001/api/analyze-video', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           videoId: currentVideoId,
-          prompt: prompt || "Generate multiple choice questions based on this video", 
-          // Use the slider value from your UI!
-          numQuestions: questionCount[0] 
+          // We tell Gemini EXACTLY what shape the data needs to be in so our UI doesn't break
+          geminiPrompt: `Turn this video timeline into ${questionCount[0]} multiple-choice questions. 
+          Respond ONLY with a valid JSON array of objects in this exact format, with no markdown tags:
+          [
+            {
+              "time": 45,
+              "question": "What is...",
+              "answers": ["Option A", "Option B", "Option C", "Option D"],
+              "correct": 0
+            }
+          ]`
         })
       });
 
-      const quizData = await quizRes.json();
+      const data = await response.json();
       
-      if (quizData.success) {
-        console.log("Quiz generated successfully!", quizData.quizzes);
+      if (data.success) {
+        console.log("🧠 Twelve Labs Raw Summary:", data.twelveLabsRawOutput);
+        console.log("✨ Gemini Final Output:", data.geminiFinalOutput);
         
-        setQuizzes(quizData.quizzes); 
+        // 2. Gemini returns a string (sometimes with ```json markdown blocks).
+        // We need to clean it and parse it into an actual JavaScript array.
+        const cleanJsonString = data.geminiFinalOutput
+          .replace(/```json/g, '')
+          .replace(/```/g, '')
+          .trim();
+          
+        const parsedQuizzes = JSON.parse(cleanJsonString);
+        
+        // 3. Update your React state with the final data!
+        setQuizzes(parsedQuizzes); 
         setVideoId(currentVideoId);
+        
         setStatusText("Complete!");
         setIsLoading(false);
 
-        // NEW: Navigate the user to the actual video player page!
-        // Assuming you have a route set up like /quiz/:id
-        navigate(`/quiz/${currentVideoId}`);
+        // 4. Send the user to the dashboard to watch the video!
+        navigate(`/courses/${currentVideoId}`); 
         
       } else {
-        throw new Error(quizData.error || "Failed to generate questions");
+        throw new Error(data.error || "Failed to analyze video");
       }
     } catch (genError: any) {
       console.error("Generation error:", genError);
