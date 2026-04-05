@@ -1,21 +1,12 @@
-import { useState, type ChangeEvent, type DragEvent } from "react";
-import {
-  Upload,
-  FileVideo,
-  Sparkles,
-  ChevronRight,
-  BookOpen,
-  Zap,
-  Brain,
-  PenLine,
-  ListOrdered,
-  CheckCircle2,
-  FileText,
-} from "lucide-react";
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { Upload, FileVideo, Sparkles, ChevronRight, BookOpen, Clock, Zap, Loader2 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
-import { generateQuizFromOverview } from "@/lib/geminiQuiz";
+import axios from "axios"; // Add this at the top
+
+
 
 const sessionQuestionTypes = [
   { id: "checkpoint", label: "Checkpoint Quiz", description: "Pause at key concepts with a quick multiple-choice check", icon: Brain },
@@ -33,16 +24,28 @@ const recentLearningSessions = [
 
 const Home = () => {
   const [isDragging, setIsDragging] = useState(false);
-  const [selectedVideoName, setSelectedVideoName] = useState<string | null>(null);
-  const [selectedQuestionTypes, setSelectedQuestionTypes] = useState<Set<string>>(new Set(["checkpoint", "truefalse"]));
-  const [questionTarget, setQuestionTarget] = useState([8]);
-  const [isGeneratingQuiz, setIsGeneratingQuiz] = useState(false);
-  const [sessionOptions, setSessionOptions] = useState({
+  const [fileName, setFileName] = useState<string | null>(null);
+  const [videoFile, setVideoFile] = useState<File | null>(null);
+  const [selectedTypes, setSelectedTypes] = useState<Set<string>>(new Set(["mcq"]));
+  const [questionCount, setQuestionCount] = useState([10]);
+  const [prompt, setPrompt] = useState("Give me a general overview of the important information that is covered, with time intervals of when the information is given. Make sure the time intervals are in seconds.");
+  const [loading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [statusText, setStatusText] = useState<string | null>(null);
+  const [uploadProgress, setUploadProgress] = useState<number>(0);
+  
+  // NEW: Added missing state variables so your generator doesn't crash!
+  const [quizzes, setQuizzes] = useState<any[]>([]);
+  const [videoId, setVideoId] = useState<string | null>(null);
+
+  const [toggles, setToggles] = useState({
     explanations: true,
     hints: true,
     queueReview: true,
     allowRetakes: true,
   });
+  
+  const navigate = useNavigate();
 
   const toggleQuestionType = (id: string) => {
     setSelectedQuestionTypes((previousTypes) => {
@@ -68,26 +71,125 @@ const Home = () => {
 
     const file = event.dataTransfer.files[0];
     if (file && file.name.endsWith(".mp4")) {
-      setSelectedVideoName(file.name);
+      setFileName(file.name);
+      setVideoFile(file); // Saves the actual file for upload
     }
   };
 
-  const handleFileSelect = (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file) setSelectedVideoName(file.name);
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file && file.name.endsWith(".mp4")) {
+      setFileName(file.name);
+      setVideoFile(file); // Saves the actual file for upload
+    }
   };
 
-  const handleCreateLearningSession = async () => {
-    setIsGeneratingQuiz(true);
+  const handleGenerateQuiz = async () => {
+    setIsLoading(true);
+    setError(null);
 
     try {
-      const { overview, quizText } = await generateQuizFromOverview();
-      console.log("TwelveLabs overview (seconds):", overview);
-      console.log("Gemini quiz response:", quizText);
-    } catch (error) {
-      console.error("Unable to generate Gemini quiz response.", error);
-    } finally {
-      setIsGeneratingQuiz(false);
+      // FIX 1: Validate and build the FormData object dynamically!
+      if (!videoFile) {
+        throw new Error("Please select a video file first.");
+      }
+
+      const formData = new FormData();
+      formData.append("video", videoFile);
+
+      setStatusText("Uploading video...");
+
+      const uploadRes = await axios.post('http://localhost:5001/api/upload-video', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+        onUploadProgress: (progressEvent) => {
+          // Calculate the percentage
+          if (progressEvent.total) {
+            const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+            setUploadProgress(percentCompleted);
+          }
+        },
+      });
+
+      const uploadData = await uploadRes.data;
+      if (!uploadData.success) {
+        throw new Error(uploadData.error || "Upload failed");
+      }
+
+      const { videoId: newVideoId, taskId } = uploadData;
+      console.log(`Upload complete. Task ID: ${taskId}`);
+
+      setUploadProgress(0); 
+      setStatusText("AI is watching your video... (This usually takes 1-3 minutes)");
+      
+      const checkIndexingStatus = async () => {
+        try {
+          const statusRes = await fetch(`http://localhost:5001/api/task-status/${taskId}`);
+          const statusData = await statusRes.json();
+
+          console.log(`Current AI Status: ${statusData.status}`);
+
+          if (statusData.status === 'ready') {
+            setStatusText("Video indexed! Generating quiz questions...");
+            await generateQuizQuestions(newVideoId);
+            
+          } else if (statusData.status === 'failed') {
+            throw new Error("Twelve Labs failed to index the video.");
+          } else {
+            // Check again in 5 seconds
+            setTimeout(checkIndexingStatus, 5000);
+          }
+        } catch (pollError: any) {
+          console.error("Polling error:", pollError);
+          setError("Error checking video status: " + pollError.message);
+          setIsLoading(false);
+        }
+      };
+
+      checkIndexingStatus();
+
+    } catch (err: any) {
+      console.error("Pipeline failed:", err);
+      setError(err.message);
+      setIsLoading(false);
+    }
+  };
+
+  const generateQuizQuestions = async (currentVideoId: string) => {
+    try {
+      const quizRes = await fetch('http://localhost:5001/api/generate-quiz', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          videoId: currentVideoId,
+          prompt: prompt || "Generate multiple choice questions based on this video", 
+          // Use the slider value from your UI!
+          numQuestions: questionCount[0] 
+        })
+      });
+
+      const quizData = await quizRes.json();
+      
+      if (quizData.success) {
+        console.log("Quiz generated successfully!", quizData.quizzes);
+        
+        setQuizzes(quizData.quizzes); 
+        setVideoId(currentVideoId);
+        setStatusText("Complete!");
+        setIsLoading(false);
+
+        // NEW: Navigate the user to the actual video player page!
+        // Assuming you have a route set up like /quiz/:id
+        navigate(`/quiz/${currentVideoId}`);
+        
+      } else {
+        throw new Error(quizData.error || "Failed to generate questions");
+      }
+    } catch (genError: any) {
+      console.error("Generation error:", genError);
+      setError("Error generating quiz: " + genError.message);
+      setIsLoading(false);
     }
   };
 
@@ -98,6 +200,14 @@ const Home = () => {
         <p className="text-sm text-muted-foreground mt-1">Upload a lecture recording and tune how QuizStream places AI-guided checkpoints.</p>
       </div>
 
+      {/* Error Message */}
+      {error && (
+        <div className="bg-destructive/10 border border-destructive rounded-lg p-4 text-destructive text-sm">
+          {error}
+        </div>
+      )}
+
+      {/* Import Area */}
       <div
         onDragOver={(event) => { event.preventDefault(); setIsDragging(true); }}
         onDragLeave={() => setIsDragging(false)}
@@ -135,6 +245,19 @@ const Home = () => {
         )}
       </div>
 
+      {/* Custom Prompt */}
+      <div className="bg-card rounded-2xl p-6 card-shadow space-y-3">
+        <label className="text-sm font-semibold text-foreground">Quiz Generation Prompt</label>
+        <textarea
+          value={prompt}
+          onChange={(e) => setPrompt(e.target.value)}
+          className="w-full p-3 border border-border rounded-lg text-sm bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+          rows={3}
+          placeholder="Describe what type of questions to generate..."
+        />
+      </div>
+
+      {/* Question Types */}
       <div className="bg-card rounded-2xl p-6 card-shadow space-y-4">
         <div className="flex items-center gap-2">
           <Sparkles className="h-5 w-5 text-tertiary" />
@@ -201,13 +324,37 @@ const Home = () => {
       </div>
 
       <button
-        disabled={!selectedVideoName}
-        onClick={handleCreateLearningSession}
-        className="w-full py-4 rounded-2xl bg-primary text-primary-foreground font-semibold text-base transition-all hover:brightness-110 active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+        onClick={handleGenerateQuiz}
+        disabled={!fileName || loading}
+        className="w-full py-4 rounded-2xl bg-primary text-primary-foreground font-semibold text-base transition-all hover:brightness-110 active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed flex flex-col items-center justify-center gap-2 overflow-hidden relative"
       >
-        <Sparkles className="h-5 w-5" />
-        {isGeneratingQuiz ? "Generating Gemini quiz..." : "Create learning session"}
-        <ChevronRight className="h-5 w-5" />
+        {/* The green background fill that grows as the file uploads */}
+        {uploadProgress > 0 && uploadProgress < 100 && (
+          <div 
+            className="absolute left-0 top-0 bottom-0 bg-success/20 transition-all duration-300 ease-out"
+            style={{ width: `${uploadProgress}%` }}
+          />
+        )}
+
+        {loading ? (
+          <div className="flex flex-col items-center relative z-10 w-full">
+            <div className="flex items-center gap-2">
+              <Loader2 className="h-5 w-5 animate-spin" />
+              <span>
+                {uploadProgress > 0 && uploadProgress < 100 
+                  ? `Uploading... ${uploadProgress}%` 
+                  : "Processing..."}
+              </span>
+            </div>
+            {statusText && <span className="text-xs opacity-80 font-normal mt-1">{statusText}</span>}
+          </div>
+        ) : (
+          <div className="flex items-center gap-2 relative z-10">
+            <Sparkles className="h-5 w-5" />
+            Generate Quiz
+            <ChevronRight className="h-5 w-5" />
+          </div>
+        )}
       </button>
 
       <div className="space-y-3">
