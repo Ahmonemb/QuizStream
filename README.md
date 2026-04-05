@@ -26,14 +26,18 @@ Open `http://localhost:8080/courses`.
 
 ## Prototype details
 
-- Backend runs on `http://localhost:3001`
+- Backend runs on `http://localhost:5001`
 - Frontend dev server runs on `http://localhost:8080`
 - Vite proxies `/api` and `/uploads` to the backend in development
 - Uploaded MP4 files are stored locally in `/uploads`
-- Video metadata is stored in `backend/data/videos.json`
+- Video metadata and quiz data are stored in `server/database.json`
 
 ## API endpoints
 
-- `POST /api/videos` with multipart form field `video`
+- `POST /api/upload-video` with multipart form field `video`
 - `GET /api/videos`
-- `GET /api/videos/:id`
+- `DELETE /api/videos/:videoId`
+- `GET /api/task-status/:taskId`
+- `POST /api/analyze-video`
+- `GET /api/quiz/:videoId`
+- `GET /api/quiz-status/:videoId`
