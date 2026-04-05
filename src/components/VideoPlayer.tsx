@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ChangeEvent, type MouseEvent } from "react";
-import { Maximize, Pause, Play, Volume2, VolumeX, CheckCircle2, XCircle } from "lucide-react";
+import { Maximize, Pause, Play, Volume2, VolumeX, CheckCircle2, XCircle, Minimize2, MessageSquareText } from "lucide-react";
 import { Checkpoint } from "@/lib/app-types";
 import { type ReactNode } from "react";
 import { useAppState } from "@/context/AppStateContext";
@@ -55,6 +55,7 @@ const VideoPlayer = ({
   const [activeQuiz, setActiveQuiz] = useState<Checkpoint | null>(null);
   const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
   const [hasSubmitted, setHasSubmitted] = useState(false);
+  const [isQuizMinimized, setIsQuizMinimized] = useState(false);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const timelineRef = useRef<HTMLDivElement>(null);
@@ -63,7 +64,8 @@ const VideoPlayer = ({
   const hideTitleTimeoutRef = useRef<number | null>(null);
 
   const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
-  const hasOverlay = Boolean(activeQuiz);
+  const isQuizVisible = Boolean(activeQuiz) && !isQuizMinimized;
+  const hasOverlay = isQuizVisible;
   const shouldShowControls = !isFullscreen || showFullscreenControls || !isPlaying || hasOverlay;
 
   useEffect(() => {
@@ -93,7 +95,7 @@ const VideoPlayer = ({
     const video = videoRef.current;
     if (!video || !videoUrl) return;
     
-    if (isPlaying && !activeQuiz) {
+    if (isPlaying && !isQuizVisible) {
       void video.play().catch(() => {
         setVideoError("Playback could not start automatically.");
         onPlayingChange(false);
@@ -101,7 +103,7 @@ const VideoPlayer = ({
     } else if (!video.paused) {
       video.pause();
     }
-  }, [isPlaying, activeQuiz, onPlayingChange, videoUrl]);
+  }, [isPlaying, isQuizVisible, onPlayingChange, videoUrl]);
 
   useEffect(() => {
     const handleFullscreenChange = () => {
@@ -164,14 +166,14 @@ const VideoPlayer = ({
   };
 
   const seekToTime = (nextTime: number) => {
-    if (activeQuiz) return;
+    if (isQuizVisible) return;
     const boundedTime = Math.max(0, Math.min(nextTime, duration || nextTime));
     if (videoRef.current && Number.isFinite(boundedTime)) videoRef.current.currentTime = boundedTime;
     onTimeUpdate(boundedTime);
   };
 
   const handleTimelineClick = (event: MouseEvent<HTMLDivElement>) => {
-    if (!timelineRef.current || duration <= 0 || activeQuiz) return;
+    if (!timelineRef.current || duration <= 0 || isQuizVisible) return;
     const timelineBounds = timelineRef.current.getBoundingClientRect();
     const progressPercent = (event.clientX - timelineBounds.left) / timelineBounds.width;
     seekToTime(progressPercent * duration);
@@ -191,6 +193,7 @@ const VideoPlayer = ({
     if (triggeredQuiz && !activeQuiz) {
       onPlayingChange(false);
       setActiveQuiz(triggeredQuiz);
+      setIsQuizMinimized(false);
       return;
     }
 
@@ -204,6 +207,7 @@ const VideoPlayer = ({
     if (endOfVideoQuiz && !activeQuiz) {
       onPlayingChange(false);
       setActiveQuiz({ ...endOfVideoQuiz, time: duration });
+      setIsQuizMinimized(false);
     }
   };
 
@@ -227,11 +231,20 @@ const VideoPlayer = ({
     setActiveQuiz(null);
     setSelectedAnswer(null);
     setHasSubmitted(false);
+    setIsQuizMinimized(false);
     setTimeout(() => { if (videoRef.current) onPlayingChange(true); }, 100);
   };
 
+  const minimizeQuiz = () => {
+    setIsQuizMinimized(true);
+  };
+
+  const reopenQuiz = () => {
+    setIsQuizMinimized(false);
+  };
+
   const handlePlayPause = () => {
-    if (!videoUrl || !videoRef.current || activeQuiz) return;
+    if (!videoUrl || !videoRef.current || isQuizVisible) return;
     if (videoRef.current.paused) {
       setVideoError(null);
       void videoRef.current.play().catch(() => setVideoError("Playback could not start."));
@@ -312,12 +325,25 @@ const VideoPlayer = ({
         </div>
 
         {/* AI QUIZ MODAL - Placed internally for perfect fullscreen support */}
-        {activeQuiz && (
-          <div className="absolute inset-0 z-40 bg-black/80 backdrop-blur-sm flex items-center justify-center p-6 animate-fade-in pointer-events-auto">
+        {activeQuiz && isQuizVisible && (
+          <div
+            className="absolute inset-0 z-40 flex items-center justify-center bg-black/80 p-6 backdrop-blur-sm animate-fade-in pointer-events-auto"
+            onClick={minimizeQuiz}
+          >
             <div className="bg-card w-full max-w-lg rounded-2xl p-6 shadow-2xl border border-border flex flex-col max-h-full overflow-y-auto" onClick={(e) => e.stopPropagation()}>
               <div className="flex justify-between items-center mb-4">
-                <span className="text-sm font-bold text-primary uppercase tracking-wider">{activeQuiz.label}</span>
-                <span className="text-xs text-muted-foreground font-mono">{formatTime(activeQuiz.time)}</span>
+                <div className="flex items-center gap-3">
+                  <span className="text-sm font-bold text-primary uppercase tracking-wider">{activeQuiz.label}</span>
+                  <span className="text-xs text-muted-foreground font-mono">{formatTime(activeQuiz.time)}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={minimizeQuiz}
+                  className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
+                >
+                  <Minimize2 className="h-4 w-4" />
+                  Minimize
+                </button>
               </div>
               <h3 className="text-xl font-semibold text-foreground mb-6 leading-tight">{activeQuiz.question}</h3>
               <div className="space-y-3 mb-6">
@@ -350,6 +376,22 @@ const VideoPlayer = ({
                 </button>
               )}
             </div>
+          </div>
+        )}
+
+        {activeQuiz && isQuizMinimized && (
+          <div className="absolute right-3 top-3 z-30 pointer-events-auto" onClick={(e) => e.stopPropagation()}>
+            <button
+              type="button"
+              onClick={reopenQuiz}
+              className="inline-flex max-w-[calc(100vw-3rem)] items-center gap-2 rounded-full border border-white/15 bg-black/55 px-2.5 py-2 text-xs font-semibold text-white shadow-lg backdrop-blur-md transition-all hover:bg-black/75 hover:shadow-xl focus:outline-none focus:ring-2 focus:ring-white/70"
+              aria-label={`Resume ${activeQuiz.label}`}
+            >
+              <span className="flex h-7 w-7 items-center justify-center rounded-full bg-primary/90 text-primary-foreground">
+                <MessageSquareText className="h-3.5 w-3.5" />
+              </span>
+              <span className="truncate pr-1">Resume question</span>
+            </button>
           </div>
         )}
 
