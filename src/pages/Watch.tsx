@@ -1,0 +1,109 @@
+import { useLocation, useParams } from "react-router-dom";
+import { useState, useEffect } from "react";
+import VideoPlayer from "@/components/VideoPlayer";
+import { Checkpoint } from "@/lib/app-types"; // Updated to match your new app structure!
+
+// Define what the AI quiz object looks like
+export interface Quiz {
+  time: number;
+  question: string;
+  answers: string[];
+  correct: number;
+}
+
+interface QuizResponse {
+  videoId: string;
+  fileName: string;
+  quizzes: Quiz[];
+  uploadedAt: string;
+}
+
+const Watch = () => {
+  const { videoId } = useParams<{ videoId: string }>();
+  const location = useLocation();
+  
+  // -- State --
+  const [quizzes, setQuizzes] = useState<Quiz[]>([]);
+  const [checkpoints, setCheckpoints] = useState<Checkpoint[]>([]);
+  const [fileName, setFileName] = useState("Video Lesson");
+  
+  // -- NEW: Added state for the advanced VideoPlayer --
+  const [currentTime, setCurrentTime] = useState(0); 
+  const [duration, setDuration] = useState(0);
+  const [isPlaying, setIsPlaying] = useState(false);
+  
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchQuizzes = async () => {
+      if (!videoId) return;
+
+      try {
+        const res = await fetch(`http://localhost:5001/api/quiz/${videoId}`);
+        if (!res.ok) throw new Error("Failed to fetch quiz");
+
+        const data: QuizResponse = await res.json();
+        
+        setQuizzes(data.quizzes || []);
+        if (data.fileName) setFileName(data.fileName);
+
+        // Map the AI quizzes into your UI Checkpoint format
+        if (data.quizzes) {
+            const mappedCheckpoints: Checkpoint[] = data.quizzes.map((q, idx) => ({
+              id: `quiz-${idx}`,
+              time: q.time,
+              label: `Question ${idx + 1}`,
+              question: q.question,      
+              options: q.answers,        
+              correctIndex: q.correct,   
+              status: "upcoming"
+            }));
+            setCheckpoints(mappedCheckpoints);
+        }
+
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Unknown error");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchQuizzes();
+  }, [videoId]);
+
+  if (!videoId) return <div className="container mx-auto py-8 text-center"><p className="text-destructive">Video not found</p></div>;
+  if (loading) return <div className="container mx-auto py-8 text-center"><p className="text-muted-foreground">Loading quiz data...</p></div>;
+  if (error) return <div className="container mx-auto py-8 text-center"><p className="text-destructive">Error: {error}</p></div>;
+
+  return (
+    <div className="container mx-auto py-8 max-w-[1000px]">
+      <div className="mb-6">
+        <h1 className="text-3xl font-bold text-foreground">Interactive Session</h1>
+        <p className="text-muted-foreground mt-2">
+          {quizzes.length > 0 ? `${quizzes.length} AI questions generated` : "No quizzes available"}
+        </p>
+      </div>
+
+      <VideoPlayer 
+        videoId={videoId}
+        lessonTitle={fileName} 
+        lessonSubtitle="AI Generated Quiz" 
+        
+        // NEW: Providing the missing props to satisfy TypeScript!
+        videoUrl={null} // Null forces it to use the videoId backend route
+        currentTime={currentTime}
+        duration={duration}
+        isPlaying={isPlaying}
+        checkpoints={checkpoints} 
+        
+        onTimeUpdate={(time) => setCurrentTime(time)}
+        onDurationChange={(dur) => setDuration(dur)}
+        onPlayingChange={(playing) => setIsPlaying(playing)}
+        onCheckpointStatusChange={(updatedCheckpoints) => setCheckpoints(updatedCheckpoints)}
+      />
+    </div>
+  );
+};
+
+export default Watch;
