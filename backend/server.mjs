@@ -65,6 +65,24 @@ app.get("/api/videos/:id", (request, response) => {
   response.json(video);
 });
 
+app.delete("/api/videos/:id", (request, response) => {
+  const existingVideos = readVideos();
+  const videoToDelete = existingVideos.find((entry) => entry.id === request.params.id);
+
+  if (!videoToDelete) {
+    response.status(404).json({ error: "Video not found." });
+    return;
+  }
+
+  try {
+    cleanupUploadedFile(path.join(uploadsDirectory, videoToDelete.filename));
+    writeVideos(existingVideos.filter((entry) => entry.id !== request.params.id));
+    response.json({ success: true, id: request.params.id });
+  } catch {
+    response.status(500).json({ error: "The video could not be deleted." });
+  }
+});
+
 app.post("/api/videos", (request, response) => {
   upload.single("video")(request, response, (error) => {
     if (error) {

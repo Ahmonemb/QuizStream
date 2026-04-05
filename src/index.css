@@ -60,42 +60,56 @@
   }
 
   .dark {
-    --background: 222 47% 11%;
-    --foreground: 210 40% 98%;
+    color-scheme: dark;
+    --background: 228 46% 9%;
+    --foreground: 225 33% 96%;
 
-    --card: 217 33% 17%;
-    --card-foreground: 210 40% 98%;
+    --card: 228 34% 14%;
+    --card-foreground: 225 33% 96%;
 
-    --popover: 217 33% 17%;
-    --popover-foreground: 210 40% 98%;
+    --popover: 228 34% 14%;
+    --popover-foreground: 225 33% 96%;
 
-    --primary: 232 44% 48%;
+    --primary: 239 70% 63%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 199 89% 48%;
+    --secondary: 213 87% 60%;
     --secondary-foreground: 0 0% 100%;
 
-    --muted: 217 33% 17%;
-    --muted-foreground: 220 13% 65%;
+    --muted: 228 27% 20%;
+    --muted-foreground: 225 18% 72%;
 
-    --accent: 217 33% 17%;
-    --accent-foreground: 210 40% 98%;
+    --accent: 232 41% 22%;
+    --accent-foreground: 227 100% 96%;
 
-    --destructive: 0 63% 31%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive: 0 72% 52%;
+    --destructive-foreground: 0 0% 100%;
 
-    --border: 217 33% 17%;
-    --input: 217 33% 17%;
-    --ring: 213 27% 84%;
+    --success: 152 62% 46%;
+    --success-foreground: 0 0% 100%;
 
-    --sidebar-background: 222 47% 11%;
-    --sidebar-foreground: 220 13% 65%;
-    --sidebar-primary: 232 44% 48%;
+    --warning: 39 92% 58%;
+    --warning-foreground: 222 47% 11%;
+
+    --tertiary: 258 82% 71%;
+    --tertiary-foreground: 228 46% 9%;
+
+    --border: 228 27% 24%;
+    --input: 228 27% 24%;
+    --ring: 239 70% 63%;
+
+    --sidebar-background: 228 50% 10%;
+    --sidebar-foreground: 225 18% 72%;
+    --sidebar-primary: 239 70% 63%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 217 33% 17%;
-    --sidebar-accent-foreground: 210 40% 98%;
-    --sidebar-border: 217 33% 17%;
-    --sidebar-ring: 232 44% 48%;
+    --sidebar-accent: 232 41% 22%;
+    --sidebar-accent-foreground: 227 100% 96%;
+    --sidebar-border: 228 27% 24%;
+    --sidebar-ring: 239 70% 63%;
+
+    --shadow-sm: 0 1px 2px rgba(3, 7, 18, 0.45);
+    --shadow-md: 0 12px 30px rgba(6, 12, 28, 0.32);
+    --shadow-xl: 0 24px 50px rgba(3, 7, 18, 0.46);
   }
 }
 
@@ -106,6 +120,7 @@
   body {
     @apply bg-background text-foreground font-sans;
     font-family: 'Inter', sans-serif;
+    transition: background-color 200ms ease, color 200ms ease;
   }
 }
 

@@ -1,4 +1,11 @@
-import { useEffect, useRef, useState, type ChangeEvent, type MouseEvent } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type ChangeEvent,
+  type MouseEvent,
+  type ReactNode,
+} from "react";
 import { Maximize, Pause, Play, Volume2, VolumeX } from "lucide-react";
 import { Checkpoint } from "@/lib/app-types";
 
@@ -10,10 +17,13 @@ interface VideoPlayerProps {
   duration: number;
   isPlaying: boolean;
   checkpoints: Checkpoint[];
+  overlay?: ReactNode;
   onTimeUpdate: (time: number) => void;
   onDurationChange: (duration: number) => void;
   onPlayingChange: (isPlaying: boolean) => void;
 }
+
+const FULLSCREEN_CONTROLS_TIMEOUT_MS = 2200;
 
 const VideoPlayer = ({
   lessonTitle,
@@ -23,6 +33,7 @@ const VideoPlayer = ({
   duration,
   isPlaying,
   checkpoints,
+  overlay,
   onTimeUpdate,
   onDurationChange,
   onPlayingChange,
@@ -33,11 +44,16 @@ const VideoPlayer = ({
   const [hoveredCheckpoint, setHoveredCheckpoint] = useState<Checkpoint | null>(null);
   const [tooltipPosition, setTooltipPosition] = useState(0);
   const [videoError, setVideoError] = useState<string | null>(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [showFullscreenControls, setShowFullscreenControls] = useState(true);
   const containerRef = useRef<HTMLDivElement>(null);
   const timelineRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const hideControlsTimeoutRef = useRef<number | null>(null);
 
   const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
+  const hasOverlay = Boolean(overlay);
+  const shouldShowControls = !isFullscreen || showFullscreenControls || !isPlaying || hasOverlay;
 
   useEffect(() => {
     const video = videoRef.current;
@@ -86,6 +102,61 @@ const VideoPlayer = ({
     setVideoError(null);
     setHoveredCheckpoint(null);
   }, [videoUrl]);
+
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      const activeFullscreenElement = document.fullscreenElement;
+      const isPlayerFullscreen = Boolean(
+        containerRef.current && activeFullscreenElement === containerRef.current,
+      );
+
+      setIsFullscreen(isPlayerFullscreen);
+      setShowFullscreenControls(true);
+    };
+
+    document.addEventListener("fullscreenchange", handleFullscreenChange);
+    handleFullscreenChange();
+
+    return () => {
+      document.removeEventListener("fullscreenchange", handleFullscreenChange);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (hideControlsTimeoutRef.current) {
+      window.clearTimeout(hideControlsTimeoutRef.current);
+      hideControlsTimeoutRef.current = null;
+    }
+
+    if (!isFullscreen) {
+      setShowFullscreenControls(true);
+      return;
+    }
+
+    if (!isPlaying || hasOverlay) {
+      setShowFullscreenControls(true);
+      return;
+    }
+
+    hideControlsTimeoutRef.current = window.setTimeout(() => {
+      setShowFullscreenControls(false);
+    }, FULLSCREEN_CONTROLS_TIMEOUT_MS);
+
+    return () => {
+      if (hideControlsTimeoutRef.current) {
+        window.clearTimeout(hideControlsTimeoutRef.current);
+        hideControlsTimeoutRef.current = null;
+      }
+    };
+  }, [hasOverlay, isFullscreen, isPlaying]);
+
+  const revealFullscreenControls = () => {
+    if (!isFullscreen) {
+      return;
+    }
+
+    setShowFullscreenControls(true);
+  };
 
   const formatTime = (seconds: number) => {
     if (!Number.isFinite(seconds) || seconds <= 0) {
@@ -145,7 +216,7 @@ const VideoPlayer = ({
   const handlePlayPause = () => {
     const video = videoRef.current;
 
-    if (!videoUrl || !video) {
+    if (!videoUrl || !video || hasOverlay) {
       return;
     }
 
@@ -187,7 +258,11 @@ const VideoPlayer = ({
   };
 
   return (
-    <div ref={containerRef} className="relative w-full overflow-hidden rounded-xl bg-foreground/95 card-shadow">
+    <div
+      ref={containerRef}
+      className="relative w-full overflow-hidden rounded-xl bg-foreground/95 card-shadow"
+      onMouseMove={revealFullscreenControls}
+    >
       <div
         className="group relative aspect-video cursor-pointer overflow-hidden bg-black"
         onClick={handlePlayPause}
@@ -218,7 +293,11 @@ const VideoPlayer = ({
           <div className="absolute inset-0 bg-gradient-to-br from-primary/20 to-secondary/20" />
         )}
 
-        <div className="pointer-events-none absolute inset-x-0 top-0 bg-gradient-to-b from-black/60 to-transparent px-5 py-4">
+        <div
+          className={`pointer-events-none absolute inset-x-0 top-0 bg-gradient-to-b from-black/60 to-transparent px-5 py-4 transition-opacity duration-300 ${
+            shouldShowControls ? "opacity-100" : "opacity-0"
+          }`}
+        >
           <h3 className="text-xl font-semibold text-primary-foreground">{lessonTitle}</h3>
           <p className="text-sm text-primary-foreground/70">{lessonSubtitle}</p>
         </div>
@@ -232,7 +311,7 @@ const VideoPlayer = ({
           </div>
         )}
 
-        {videoUrl && !isPlaying && (
+        {videoUrl && !isPlaying && !hasOverlay && (
           <div className="absolute inset-0 flex items-center justify-center bg-black/20">
             <div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary/90 transition-transform group-hover:scale-110">
               <Play className="ml-1 h-7 w-7 text-primary-foreground" />
@@ -245,9 +324,19 @@ const VideoPlayer = ({
             {videoError}
           </div>
         )}
+
+        {overlay && (
+          <div className="absolute inset-0 z-40 flex items-center justify-center">
+            {overlay}
+          </div>
+        )}
       </div>
 
-      <div className="bg-card px-4 pb-4 pt-3">
+      <div
+        className={`bg-card px-4 pb-4 pt-3 transition-all duration-300 ${
+          shouldShowControls ? "translate-y-0 opacity-100" : "pointer-events-none translate-y-full opacity-0"
+        }`}
+      >
         <div
           ref={timelineRef}
           className={`relative mb-3 h-2 rounded-full bg-muted ${duration > 0 ? "cursor-pointer" : "cursor-not-allowed opacity-60"}`}
