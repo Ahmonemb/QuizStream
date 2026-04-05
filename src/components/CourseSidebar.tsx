@@ -5,7 +5,7 @@ import {
   Settings,
   GraduationCap,
 } from "lucide-react";
-import { navItems } from "@/data/courseData";
+import { learnerProfile, navItems } from "@/data/courseData";
 import { useLocation, Link } from "react-router-dom";
 
 const iconMap: Record<string, React.ElementType> = {
@@ -22,13 +22,14 @@ const CourseSidebar = () => {
     <aside className="hidden lg:flex flex-col w-60 bg-card border-r border-border h-screen sticky top-0 shrink-0">
       <div className="flex items-center gap-2 px-6 py-5 border-b border-border">
         <GraduationCap className="h-7 w-7 text-primary" />
-        <span className="text-lg font-bold text-foreground">LearnHub</span>
+        <span className="text-lg font-bold text-foreground">QuizStream</span>
       </div>
 
       <nav className="flex-1 py-4 px-3 space-y-1">
         {navItems.map((item) => {
           const Icon = iconMap[item.icon] || Home;
           const isActive = location.pathname === item.path;
+
           return (
             <Link
               key={item.id}
@@ -49,11 +50,11 @@ const CourseSidebar = () => {
       <div className="p-4 border-t border-border">
         <div className="flex items-center gap-3">
           <div className="h-9 w-9 rounded-full bg-primary flex items-center justify-center text-primary-foreground text-sm font-semibold">
-            JS
+            {learnerProfile.initials}
           </div>
           <div className="text-sm">
-            <p className="font-medium text-foreground">Jane Smith</p>
-            <p className="text-muted-foreground text-xs">Free Plan</p>
+            <p className="font-medium text-foreground">{learnerProfile.name}</p>
+            <p className="text-muted-foreground text-xs">{learnerProfile.plan}</p>
           </div>
         </div>
       </div>
