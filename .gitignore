@@ -27,3 +27,5 @@ backend/data/videos.json
 *.sw?
 .env.local
 .env
+
+server/.env

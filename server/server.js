@@ -17,6 +17,11 @@ dotenv.config();
 
 const client = new TwelveLabs({ apiKey: process.env.TWELVE_LABS_API_KEY });
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_GEMINI_API_KEY);
+const DEFAULT_GEMINI_MODEL =
+  process.env.GOOGLE_GEMINI_MODEL ?? "gemini-3-flash-preview";
+const DEFAULT_GEMINI_FALLBACK_MODELS = parseGeminiModelList(
+  process.env.GOOGLE_GEMINI_FALLBACK_MODELS,
+);
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -116,6 +121,23 @@ function parseSummaryTimeToSeconds(value) {
   return parseClockTimeToSeconds(trimmed);
 }
 
+function formatSecondsAsTimestamp(totalSeconds) {
+  if (!Number.isFinite(totalSeconds) || totalSeconds < 0) {
+    return "0:00";
+  }
+
+  const roundedSeconds = Math.max(0, Math.round(totalSeconds));
+  const hours = Math.floor(roundedSeconds / 3600);
+  const minutes = Math.floor((roundedSeconds % 3600) / 60);
+  const seconds = roundedSeconds % 60;
+
+  if (hours > 0) {
+    return `${hours}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+  }
+
+  return `${minutes}:${String(seconds).padStart(2, "0")}`;
+}
+
 function extractTimelineAnchorsFromSummary(summaryText, offsetSeconds = 5) {
   const normalizedSummary = toSummaryText(summaryText);
   const anchorTimes = [];
@@ -159,25 +181,33 @@ function extractTimelineAnchorsFromTimestampSummary(
     let match;
 
     while ((match = intervalPattern.exec(normalizedSummary)) !== null) {
+      const startSeconds = parseSummaryTimeToSeconds(match[1]);
       const endSeconds = parseSummaryTimeToSeconds(match[2]);
-      if (!Number.isFinite(endSeconds)) {
+      if (!Number.isFinite(startSeconds) || !Number.isFinite(endSeconds)) {
         continue;
       }
 
-      const derivedSeconds = Math.max(
+      const checkpointTime = Math.max(
         0,
         Math.round(endSeconds + offsetSeconds),
       );
-      if (seen.has(derivedSeconds)) {
+      const answerTime = Math.max(0, Math.round(startSeconds));
+      const dedupeKey = `${answerTime}:${checkpointTime}`;
+
+      if (seen.has(dedupeKey)) {
         continue;
       }
 
-      seen.add(derivedSeconds);
-      anchorTimes.push(derivedSeconds);
+      seen.add(dedupeKey);
+      anchorTimes.push({
+        time: checkpointTime,
+        answerTime,
+        answerTimestamp: formatSecondsAsTimestamp(answerTime),
+      });
     }
   }
 
-  return anchorTimes.sort((left, right) => left - right);
+  return anchorTimes.sort((left, right) => left.time - right.time);
 }
 
 const VALID_CHECKPOINT_STATUSES = new Set([
@@ -252,7 +282,19 @@ function normalizeCheckpoint(rawCheckpoint, index, timelineAnchors = []) {
   const anchorIndex = hasTimelineAnchors
     ? Math.min(index, timelineAnchors.length - 1)
     : -1;
-  const anchoredTime = Number(timelineAnchors[anchorIndex]);
+  const selectedAnchor = hasTimelineAnchors ? timelineAnchors[anchorIndex] : null;
+  const anchoredTime = Number(
+    typeof selectedAnchor === "number" ? selectedAnchor : selectedAnchor?.time,
+  );
+  const anchoredAnswerTime = Number(
+    typeof selectedAnchor === "object" && selectedAnchor
+      ? selectedAnchor.answerTime
+      : Number.NaN,
+  );
+  const anchoredAnswerTimestamp =
+    typeof selectedAnchor === "object" && selectedAnchor
+      ? selectedAnchor.answerTimestamp
+      : "";
   const hasAnchoredTime =
     hasTimelineAnchors && Number.isFinite(anchoredTime) && anchoredTime >= 0;
   let normalizedTime = Math.round(anchoredTime);
@@ -319,6 +361,23 @@ function normalizeCheckpoint(rawCheckpoint, index, timelineAnchors = []) {
     typeof rawCheckpoint.label === "string" ? rawCheckpoint.label.trim() : "";
   const rawId =
     typeof rawCheckpoint.id === "string" ? rawCheckpoint.id.trim() : "";
+  const rawAnswer =
+    typeof rawCheckpoint.answer === "string"
+      ? rawCheckpoint.answer.trim()
+      : typeof rawCheckpoint.correctAnswerText === "string"
+        ? rawCheckpoint.correctAnswerText.trim()
+        : "";
+  const rawAnswerTime = Number(rawCheckpoint.answerTime);
+  const normalizedAnswerTime =
+    Number.isFinite(rawAnswerTime) && rawAnswerTime >= 0
+      ? Math.round(rawAnswerTime)
+      : Number.isFinite(anchoredAnswerTime) && anchoredAnswerTime >= 0
+        ? Math.round(anchoredAnswerTime)
+        : normalizedTime;
+  const rawAnswerTimestamp =
+    typeof rawCheckpoint.answerTimestamp === "string"
+      ? rawCheckpoint.answerTimestamp.trim()
+      : anchoredAnswerTimestamp;
   const rawStatus =
     typeof rawCheckpoint.status === "string" &&
     VALID_CHECKPOINT_STATUSES.has(rawCheckpoint.status)
@@ -332,6 +391,10 @@ function normalizeCheckpoint(rawCheckpoint, index, timelineAnchors = []) {
     question,
     options,
     correctIndex: rawCorrectIndex,
+    answer: rawAnswer || options[rawCorrectIndex],
+    answerTime: normalizedAnswerTime,
+    answerTimestamp:
+      rawAnswerTimestamp || formatSecondsAsTimestamp(normalizedAnswerTime),
     status: rawStatus,
   };
 }
@@ -568,10 +631,17 @@ app.post("/api/analyze-video", async (req, res) => {
       `1️⃣ Asking Twelve Labs to extract enough info for ${questionCount} questions...`,
     );
 
-    // 2. Inject the target number into the Twelve Labs prompt!
+    // Answer-specific extraction is intentionally disabled for now.
     const tlGeneration = await client.analyze({
       videoId: tlVideoId,
-      prompt: `Give me a general overview of the important information that is covered, with time intervals of when the information is given. Make sure to extract at least enough distinct key moments and concepts to generate ${questionCount} high-quality multiple-choice questions. Make sure the time intervals are in seconds.`,
+      prompt: `Create a structured timeline of the most important information covered in this video.
+
+For each distinct key moment:
+- include the exact start and end time interval in seconds
+- name the concept, event, or explanation happening there
+- keep nearby concepts separate instead of merging them together
+
+Make sure there are at least ${questionCount} distinct key moments so another model can generate ${questionCount} high-quality multiple-choice checkpoint questions from your output.`,
     });
 
     const twelveLabsSummary = tlGeneration.data;
@@ -616,7 +686,6 @@ app.post("/api/analyze-video", async (req, res) => {
 // ============ GEMINI HELPER ============
 async function processWithGemini(twelveLabsSummary, userPrompt, questionCount) {
   try {
-    const model = genAI.getGenerativeModel({ model: "gemini-3-flash-preview" });
     const summaryText = toSummaryText(twelveLabsSummary);
     const timelineAnchors = extractTimelineAnchorsFromTimestampSummary(
       summaryText,
@@ -625,10 +694,11 @@ async function processWithGemini(twelveLabsSummary, userPrompt, questionCount) {
 
     if (timelineAnchors.length > 0) {
       console.log(
-        `🕒 Derived ${timelineAnchors.length} checkpoint timestamps from Twelve Labs ranges (end + 5s).`,
+        `🕒 Derived ${timelineAnchors.length} checkpoint timestamps and replay anchors from Twelve Labs ranges.`,
       );
     }
 
+    // Answer reveal fields are intentionally disabled for now.
     const prompt = `You are an expert educational assistant.
 
 You will receive a timeline summary of a video.
@@ -652,7 +722,7 @@ Rules:
 - Use only facts from the provided timeline summary.
 - 'time' must be numeric seconds >= 0.
 - 'correctIndex' must be a 0-based integer that points to an option.
-- Include at least 2 options per question.
+- Include exactly 4 options per question.
 - Keep 'status' as "upcoming".
 
 Video timeline summary:
@@ -662,12 +732,18 @@ ${summaryText}
 
 Task instruction from user:
 ${userPrompt || `Create ${Number(questionCount) || 3} high-quality multiple-choice checkpoints.`}`;
-
-    const result = await model.generateContent(prompt);
-    const response = await result.response;
-
-    const rawText = response.text();
-    return parseGeminiCheckpoints(rawText, timelineAnchors);
+    const modelsToTry = resolveGeminiModels(
+      DEFAULT_GEMINI_MODEL,
+      DEFAULT_GEMINI_FALLBACK_MODELS,
+      "gemini-2.5-flash",
+    );
+    const rawText = await runGeminiPrompt(prompt, modelsToTry);
+    const draftCheckpoints = parseGeminiCheckpoints(rawText, timelineAnchors);
+    return draftCheckpoints;
+    // return await polishCheckpointAnswersWithFallback(
+    //   draftCheckpoints,
+    //   summaryText,
+    // );
   } catch (error) {
     if (error instanceof InvalidGeminiOutputError) {
       throw error;
@@ -677,6 +753,156 @@ ${userPrompt || `Create ${Number(questionCount) || 3} high-quality multiple-choi
     throw new Error("Failed to process data with Gemini.");
   }
 }
+
+async function runGeminiPrompt(prompt, modelsToTry) {
+  for (const [index, candidateModel] of modelsToTry.entries()) {
+    try {
+      const model = genAI.getGenerativeModel({ model: candidateModel });
+      const result = await model.generateContent(prompt);
+      const response = await result.response;
+      return response.text();
+    } catch (error) {
+      if (error instanceof InvalidGeminiOutputError) {
+        throw error;
+      }
+
+      if (
+        index < modelsToTry.length - 1 &&
+        shouldFallbackToNextGeminiModel(error)
+      ) {
+        console.warn(
+          `Gemini model ${candidateModel} is unavailable, retrying with ${modelsToTry[index + 1]}.`,
+        );
+        continue;
+      }
+
+      throw error;
+    }
+  }
+
+  throw new Error("All configured Gemini models were unavailable.");
+}
+
+function parseGeminiModelList(value) {
+  if (typeof value !== "string") {
+    return [];
+  }
+
+  return value
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+}
+
+function resolveGeminiModels(primaryModel, fallbackModels, stableFallbackModel) {
+  return [...new Set([
+    primaryModel,
+    ...fallbackModels,
+    primaryModel !== stableFallbackModel ? stableFallbackModel : null,
+  ])].filter(Boolean);
+}
+
+function resolveFallbackPreferredGeminiModels(
+  fallbackModels,
+  stableFallbackModel,
+) {
+  return [...new Set([
+    fallbackModels[0] ?? stableFallbackModel,
+    ...fallbackModels,
+    stableFallbackModel,
+  ])].filter(Boolean);
+}
+
+function shouldFallbackToNextGeminiModel(error) {
+  const statusCode = Number(error?.status ?? error?.statusCode);
+  if ([429, 500, 502, 503, 504].includes(statusCode)) {
+    return true;
+  }
+
+  const message = String(error?.message ?? "").toLowerCase();
+
+  return [
+    "high demand",
+    "service unavailable",
+    "try again later",
+    "temporarily unavailable",
+    "overloaded",
+  ].some((fragment) => message.includes(fragment));
+}
+
+// async function polishCheckpointAnswersWithFallback(checkpoints, summaryText) {
+//   const fallbackModels = resolveFallbackPreferredGeminiModels(
+//     DEFAULT_GEMINI_FALLBACK_MODELS,
+//     "gemini-2.5-flash",
+//   );
+//
+//   const answerPrompt = `You are improving the answer reveal copy for a study quiz.
+//
+// Return ONLY valid JSON. No markdown, no prose, no code fences.
+//
+// Required output format:
+// [
+//   {
+//     "id": "checkpoint-1",
+//     "answer": "A concise student-friendly explanation of the correct answer."
+//   }
+// ]
+//
+// Rules:
+// - Keep the same number of items and the same ids.
+// - Rewrite only the 'answer' field.
+// - Each answer should be 1-2 sentences max.
+// - Use natural student-friendly wording.
+// - Do not mention option letters.
+// - Do not introduce facts that are not supported by the timeline summary.
+//
+// Video timeline summary:
+// """
+// ${summaryText}
+// """
+//
+// Checkpoints:
+// ${JSON.stringify(
+//     checkpoints.map((checkpoint) => ({
+//       id: checkpoint.id,
+//       question: checkpoint.question,
+//       correctOption: checkpoint.options[checkpoint.correctIndex],
+//       answer: checkpoint.answer,
+//       answerTimestamp: checkpoint.answerTimestamp,
+//     })),
+//     null,
+//     2,
+//   )}`;
+//
+//   try {
+//     const rawText = await runGeminiPrompt(answerPrompt, fallbackModels);
+//     const payload = extractJsonPayload(rawText);
+//
+//     if (!Array.isArray(payload) || payload.length !== checkpoints.length) {
+//       throw new InvalidGeminiOutputError(
+//         "Gemini returned an invalid answer rewrite payload.",
+//       );
+//     }
+//
+//     const answersById = new Map(
+//       payload.map((item) => [
+//         item?.id,
+//         typeof item?.answer === "string" ? item.answer.trim() : "",
+//       ]),
+//     );
+//
+//     return checkpoints.map((checkpoint) => ({
+//       ...checkpoint,
+//       answer: answersById.get(checkpoint.id) || checkpoint.answer,
+//     }));
+//   } catch (error) {
+//     console.warn(
+//       "Gemini answer polishing failed, falling back to the draft answers.",
+//       error?.message || error,
+//     );
+//     return checkpoints;
+//   }
+// }
 
 // ============ GET QUIZ DATA ============
 app.get("/api/quiz/:videoId", (req, res) => {

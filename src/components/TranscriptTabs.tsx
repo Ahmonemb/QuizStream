@@ -109,9 +109,17 @@ const TranscriptTabs = ({
                   <span className={`h-2 w-2 rounded-full ${checkpoint.status === "completed" ? "bg-success" : "bg-destructive"}`} />
                   <span className="text-sm font-medium text-foreground">{checkpoint.label}</span>
                   <span className="text-xs text-muted-foreground ml-auto">{formatTime(checkpoint.time)}</span>
+                  {/* <button
+                    type="button"
+                    onClick={() => onSeek(checkpoint.answerTime ?? checkpoint.time)}
+                    className="ml-auto rounded-full border border-border px-2.5 py-1 text-xs font-semibold text-primary transition-colors hover:border-primary/40"
+                  >
+                    {checkpoint.answerTimestamp || formatTime(checkpoint.answerTime ?? checkpoint.time)}
+                  </button> */}
                 </div>
                 <p className="text-sm text-muted-foreground">{checkpoint.question}</p>
                 <p className="text-xs mt-1 text-success font-medium">Answer: {checkpoint.options[checkpoint.correctIndex]}</p>
+                {/* <p className="text-xs mt-1 text-success font-medium">Answer: {checkpoint.answer || checkpoint.options[checkpoint.correctIndex]}</p> */}
               </div>
             )) : (
               <div className="rounded-xl border border-dashed border-border px-4 py-6 text-sm text-muted-foreground">
