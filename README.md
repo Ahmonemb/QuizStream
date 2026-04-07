@@ -1,17 +1,16 @@
 # QuizStream
 
-AI-powered video analysis and quiz generation using TwelveLabs and Google Gemini.
+AI-powered video analysis and quiz generation using Google Gemini.
 
 ## Features
 
 - Upload and process videos
-- AI video understanding with TwelveLabs
-- Generate quizzes using Gemini
+- AI video understanding and quiz generation using Gemini
 
 ## Tech Stack
 
 - Backend: Node.js, Express
-- AI APIs: TwelveLabs, Google Gemini
+- AI APIs: Google Gemini
 
 ## Environment Variables
 
