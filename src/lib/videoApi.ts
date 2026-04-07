@@ -34,14 +34,16 @@ export async function uploadVideoFile(file: File, onProgress?: (pct: number) => 
   return response.data; // Returns { success, videoId, taskId }
 }
 
-// 3. Poll for Twelve Labs indexing status (Used by Home.tsx)
+// 3. Poll for Gemini processing status
 export async function getTaskStatus(taskId: string) {
-  const response = await fetch(`/api/task-status/${taskId}`);
+  // encodeURIComponent turns "files/123" into "files%2F123" so Express reads it as one variable
+  const response = await fetch(`/api/task-status/${encodeURIComponent(taskId)}`);
+  
   if (!response.ok) throw new Error("Failed to check video status");
   return await response.json();
 }
 
-// 4. Centralized AI Analysis (Used by Home.tsx)
+// 4. Centralized AI Analysis via Gemini (Used by Home.tsx)
 export async function analyzeVideo(videoId: string, questionCount: number, prompt: string) {
   const response = await fetch('/api/analyze-video', {
     method: 'POST',
