@@ -18,7 +18,7 @@ const genAI = new GoogleGenerativeAI(process.env.GOOGLE_GEMINI_API_KEY);
 const fileManager = new GoogleAIFileManager(process.env.GOOGLE_GEMINI_API_KEY);
 
 // Fallback to a fast multimodal model if not specified
-const DEFAULT_GEMINI_MODEL = process.env.GOOGLE_GEMINI_MODEL ?? "gemini-2.5-flash"; 
+const DEFAULT_GEMINI_MODEL = process.env.GOOGLE_GEMINI_MODEL ?? "gemini-1.5-flash"; 
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -163,14 +163,14 @@ function normalizeCheckpoint(rawCheckpoint, index) {
 }
 
 function parseGeminiCheckpoints(rawText) {
-  const payload = extractJsonPayload(rawText);
-  const rawCheckpoints = Array.isArray(payload) ? payload : null;
-
-  if (!rawCheckpoints || rawCheckpoints.length === 0) {
-    throw new InvalidGeminiOutputError("Gemini must return a JSON array of checkpoint questions.");
+  try {
+    const cleaned = rawText.replace(/```json/g, "").replace(/```/g, "").trim();
+    const data = JSON.parse(cleaned);
+    return Array.isArray(data) ? data : data.quizzes || [];
+  } catch (e) {
+    console.error("JSON Parse Error:", rawText);
+    throw new Error("AI returned an invalid format. Please try again.");
   }
-
-  return rawCheckpoints.map((checkpoint, index) => normalizeCheckpoint(checkpoint, index));
 }
 
 // ============ UPLOAD VIDEO ============
@@ -353,77 +353,86 @@ app.post("/api/analyze-video", async (req, res) => {
 
 // ============ GEMINI HELPER ============
 async function processWithGemini(fileUri, localPath, userPrompt, questionCount) {
-  try {
-    const mimeType = mimeTypeFromFilePath(localPath);
-    
-    const prompt = `You are an expert educational assistant acting as an EdPuzzle creator.
-You are analyzing a video.
+  const maxRetries = 3;
+  let attempt = 0;
+
+  while (attempt < maxRetries) {
+    try {
+      const mimeType = "video/mp4"; // Ensure consistency
+      
+      // Check if the frontend requested automatic question counting
+      const isAuto = String(questionCount).toLowerCase() === "auto";
+      
+      const countInstruction = isAuto
+        ? "Analyze the video and automatically determine the optimal number of distinct, high-impact learning moments based on the density of the concepts taught."
+        : `Identify exactly ${Number(questionCount) || 5} distinct, high-impact learning moments.`;
+
+      const userInstructionText = isAuto
+        ? "Create the optimal number of high-quality multiple-choice checkpoints based on the video's content."
+        : `Create ${Number(questionCount) || 5} questions.`;
+
+      // IMPROVED PROMPT: Specifically designed to handle long-duration context
+      const prompt = `You are an expert educational designer. You are analyzing a long-form lecture video.
 
 Task:
-1. Identify ${Number(questionCount) || 3} distinct, key learning moments spread throughout the video.
-2. For each moment, determine the exact timestamp (in numeric seconds) where the video should pause to quiz the user.
-3. Write a multiple-choice question that tests the information just covered prior to that timestamp.
-4. Return ONLY valid JSON. No markdown, no prose, no code fences.
+1. ${countInstruction}
+2. IMPORTANT: Space these moments out appropriately across the entire duration of the video.
+3. For each moment, provide a precise timestamp (in seconds) where a student should pause for a knowledge check.
+4. Generate a multiple-choice question for each moment that tests the material immediately preceding the timestamp.
 
-Required output format:
+Return ONLY valid JSON in this format:
 [
   {
     "id": "checkpoint-1",
     "time": 42,
-    "label": "Question 1",
-    "question": "What is the primary function of...?",
-    "options": ["Option A", "Option B", "Option C", "Option D"],
+    "label": "Concept Check",
+    "question": "...",
+    "options": ["...", "...", "...", "..."],
     "correctIndex": 0,
     "status": "upcoming"
   }
 ]
 
 Rules:
-- Return an array of objects.
-- 'time' must be numeric seconds >= 0.
-- 'correctIndex' must be a 0-based integer that points to the correct answer in the options array.
-- Include exactly 4 options per question.
-- Keep 'status' as "upcoming".
+- JSON only. No markdown fences.
+- 'time' must be numeric seconds.
+- Provide exactly 4 options per question.
+- Ensure questions are pedagogical and test comprehension, not just trivia.
 
-User instruction:
-${userPrompt || `Create ${Number(questionCount) || 3} high-quality multiple-choice checkpoints.`}`;
+User instructions: ${userPrompt || userInstructionText}`;
 
-    const model = genAI.getGenerativeModel({ model: DEFAULT_GEMINI_MODEL });
-    
-    console.log("⏳ Sending request to Gemini... waiting for response.");
-    
-    // START TIMER
-    const inferenceStartTime = Date.now();
-    
-    const result = await model.generateContent([
-      {
-        fileData: {
-          mimeType: mimeType,
-          fileUri: fileUri
-        }
-      },
-      { text: prompt }
-    ]);
+      const model = genAI.getGenerativeModel({ model: DEFAULT_GEMINI_MODEL });
+      
+      console.log(`⏳ [Attempt ${attempt + 1}] Processing long-form video via Gemini...`);
+      const inferenceStartTime = Date.now();
 
-    // END TIMER
-    const inferenceEndTime = Date.now();
-    const rawText = result.response.text();
-    
-    // PRINT LOGS
-    const timeInSeconds = ((inferenceEndTime - inferenceStartTime) / 1000).toFixed(2);
-    console.log(`\n⏱️ GEMINI INFERENCE TIME: ${timeInSeconds} seconds`);
-    console.log("==========================================");
-    console.log("🤖 RAW GEMINI RESPONSE:");
-    console.log(rawText);
-    console.log("==========================================\n");
+      const result = await model.generateContent([
+        { fileData: { mimeType, fileUri } },
+        { text: prompt }
+      ]);
 
-    return parseGeminiCheckpoints(rawText);
-  } catch (error) {
-    if (error instanceof InvalidGeminiOutputError) {
-      throw error;
+      const inferenceEndTime = Date.now();
+      const rawText = result.response.text();
+      
+      console.log(`⏱️ Inference Time: ${((inferenceEndTime - inferenceStartTime) / 1000).toFixed(2)}s`);
+      console.log("🤖 RAW RESPONSE PREVIEW:", rawText.substring(0, 100) + "...");
+
+      return parseGeminiCheckpoints(rawText);
+
+    } catch (error) {
+      attempt++;
+      const statusCode = error?.status || error?.statusCode;
+      
+      if ((statusCode === 503 || statusCode === 429 || statusCode === 500) && attempt < maxRetries) {
+        const delay = Math.pow(2, attempt) * 2000; 
+        console.warn(`⚠️ Gemini busy or errored (${statusCode}). Retrying in ${delay/1000}s...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+        continue;
+      }
+      
+      console.error("Gemini API Error:", error.message);
+      throw new Error(attempt >= maxRetries ? "The AI is currently busy analyzing this long video. Please try again in a moment." : "Failed to process video.");
     }
-    console.error("Gemini API Error:", error.message || error);
-    throw new Error("Failed to process data with Gemini.");
   }
 }
 

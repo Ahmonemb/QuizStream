@@ -175,142 +175,76 @@
       "fileName": "YTDown.com_YouTube_ALL-of-calculus-3-in-8-minutes_Media_5kwz7ajxfyA_001_720p.mp4",
       "uploadedAt": "2026-04-07T19:41:10.570Z",
       "localPath": "uploads/61945372a6ab02227a1aa4f7cb0baffa",
-      "currentRequestStartTime": 1775590870570,
+      "currentRequestStartTime": 1775592701205,
       "quizzes": [
         {
           "id": "checkpoint-1",
-          "time": 43,
-          "label": "Question 1",
-          "question": "Which of the following best describes a vector?",
+          "time": 42,
+          "label": "Concept Check",
+          "question": "What fundamental difference distinguishes a 3D vector from a 2D vector in the context of multivariable calculus?",
           "options": [
-            "A quantity with only magnitude",
-            "A quantity with only direction",
-            "A quantity with both direction and magnitude",
-            "A quantity that has no defined orientation"
+            "A 3D vector has more magnitude than a 2D vector.",
+            "A 3D vector requires three coordinates to define its direction, whereas a 2D vector only requires two.",
+            "A 3D vector can only exist in a vacuum.",
+            "A 2D vector is a scalar, whereas a 3D vector is a tensor."
           ],
-          "correctIndex": 2,
-          "answer": "A quantity with both direction and magnitude",
-          "answerTime": 43,
-          "answerTimestamp": "0:43",
+          "correctIndex": 1,
           "status": "upcoming"
         },
         {
           "id": "checkpoint-2",
           "time": 143,
-          "label": "Question 2",
-          "question": "What is the dot product of two perpendicular (orthogonal) vectors?",
+          "label": "Concept Check",
+          "question": "Given the geometric relationship between two vectors U and V, what can you conclude if their dot product is equal to zero?",
           "options": [
-            "1",
-            "0",
-            "-1",
-            "The product of their magnitudes"
+            "The vectors are parallel.",
+            "The vectors are orthogonal (perpendicular).",
+            "The vectors have the same magnitude.",
+            "The dot product must always be non-zero for any two vectors."
           ],
           "correctIndex": 1,
-          "answer": "0",
-          "answerTime": 143,
-          "answerTimestamp": "2:23",
           "status": "upcoming"
         },
         {
           "id": "checkpoint-3",
-          "time": 213,
-          "label": "Question 3",
-          "question": "What is the primary geometric property of a cross product vector?",
+          "time": 301,
+          "label": "Concept Check",
+          "question": "Why does a 3D function have 'infinitely many' directional derivatives at a single point?",
           "options": [
-            "It is parallel to both vectors",
-            "It is equal to the sum of the two vectors",
-            "It is orthogonal (perpendicular) to both vectors",
-            "It has a magnitude of zero"
+            "Because a 3D function is not continuous.",
+            "Because a 3D function has no derivatives.",
+            "Because there are infinitely many directions in which one can move from a point in 3D space.",
+            "Because the derivative depends only on the Z-axis."
           ],
           "correctIndex": 2,
-          "answer": "It is orthogonal (perpendicular) to both vectors",
-          "answerTime": 213,
-          "answerTimestamp": "3:33",
           "status": "upcoming"
         },
         {
           "id": "checkpoint-4",
-          "time": 302,
-          "label": "Question 4",
-          "question": "What is a 'directional derivative' in the context of a 3D function?",
+          "time": 455,
+          "label": "Concept Check",
+          "question": "In the context of triple integrals and 3D coordinate systems, which of the following is NOT one of the standard systems mentioned?",
           "options": [
-            "The derivative in one of the infinite directions one can move at a point",
-            "The only derivative that exists for a function",
-            "The average value of the function",
-            "The gradient of the function"
+            "Rectangular coordinates",
+            "Cylindrical coordinates",
+            "Spherical coordinates",
+            "Hyperbolic coordinates"
           ],
-          "correctIndex": 0,
-          "answer": "The derivative in one of the infinite directions one can move at a point",
-          "answerTime": 302,
-          "answerTimestamp": "5:02",
+          "correctIndex": 3,
           "status": "upcoming"
         },
         {
           "id": "checkpoint-5",
-          "time": 344,
-          "label": "Question 5",
-          "question": "What does performing a double integral under a function represent geometrically?",
+          "time": 743,
+          "label": "Concept Check",
+          "question": "What does a 'conservative' vector field imply about line integrals performed within it?",
           "options": [
-            "The surface area",
-            "The volume under the surface",
-            "The slope of the surface",
-            "The line length"
+            "The line integral is dependent on the path taken.",
+            "The line integral is path-independent.",
+            "The line integral will always equal zero regardless of the path.",
+            "Conservative fields do not allow for line integrals."
           ],
           "correctIndex": 1,
-          "answer": "The volume under the surface",
-          "answerTime": 344,
-          "answerTimestamp": "5:44",
-          "status": "upcoming"
-        },
-        {
-          "id": "checkpoint-6",
-          "time": 456,
-          "label": "Question 6",
-          "question": "In polar coordinates, what is the correct differential area element used for integration?",
-          "options": [
-            "dx dy",
-            "dr dθ",
-            "r dr dθ",
-            "r² dr dθ"
-          ],
-          "correctIndex": 2,
-          "answer": "r dr dθ",
-          "answerTime": 456,
-          "answerTimestamp": "7:36",
-          "status": "upcoming"
-        },
-        {
-          "id": "checkpoint-7",
-          "time": 602,
-          "label": "Question 7",
-          "question": "What does a 'conservative' vector field imply about its line integrals?",
-          "options": [
-            "The line integral depends on the path taken",
-            "The line integral is always zero",
-            "The line integral is path-independent",
-            "The line integral is only defined in 2D"
-          ],
-          "correctIndex": 2,
-          "answer": "The line integral is path-independent",
-          "answerTime": 602,
-          "answerTimestamp": "10:02",
-          "status": "upcoming"
-        },
-        {
-          "id": "checkpoint-8",
-          "time": 744,
-          "label": "Question 8",
-          "question": "In vector calculus, what does 'divergence' measure?",
-          "options": [
-            "The amount of rotation around a point",
-            "The amount of inflow or outflow from a region",
-            "The average speed of particles",
-            "The total surface area"
-          ],
-          "correctIndex": 1,
-          "answer": "The amount of inflow or outflow from a region",
-          "answerTime": 744,
-          "answerTimestamp": "12:24",
           "status": "upcoming"
         }
       ]
