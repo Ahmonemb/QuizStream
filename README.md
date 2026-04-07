@@ -18,8 +18,6 @@ AI-powered video analysis and quiz generation using TwelveLabs and Google Gemini
 Create a `.env` file in the project root:
 
 ```env
-TWELVE_LABS_API_KEY=your_key
-TWELVE_LABS_INDEX_ID=your_index_id
 GOOGLE_GEMINI_API_KEY=your_key
 GOOGLE_GEMINI_MODEL=your_model_here
 PORT=5001
