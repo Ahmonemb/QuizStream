@@ -149,14 +149,14 @@ const AddCourseModal = ({
 
     setIsUploading(true);
     setUploadError(null);
-    setStatusText("Uploading to Twelve Labs...");
+    setStatusText("Uploading video to AI server...");
 
     try {
-      // 1. Upload Video to Node Backend (which sends to Twelve Labs)
+      // 1. Upload Video to Node Backend (which sends directly to Gemini API)
       const uploadRes = await uploadVideoFile(selectedFile);
       const { videoId, taskId } = uploadRes;
 
-      // 2. Poll for Indexing Status
+      // 2. Poll for Gemini File Processing Status
       const checkStatus = async () => {
         try {
           const statusData = await getTaskStatus(taskId);
@@ -164,7 +164,7 @@ const AddCourseModal = ({
           if (statusData.status === "ready") {
             setStatusText("AI is generating your quiz questions...");
 
-            // 3. Trigger Gemini Analysis
+            // 3. Trigger Gemini Analysis (Single multimodal pass)
             await analyzeVideo(
               videoId,
               questionTarget[0],
@@ -185,11 +185,11 @@ const AddCourseModal = ({
             onCourseCreated?.();
             onOpenChange(false);
           } else if (statusData.status === "failed") {
-            throw new Error("Twelve Labs failed to index the video.");
+            throw new Error("AI failed to process the video format.");
           } else {
-            // Still indexing... update status and check again in 5 seconds
+            // Still indexing/processing... update status and check again in 5 seconds
             setStatusText(
-              `AI is watching your video... (${statusData.status})`,
+              `AI is analyzing your video... (${statusData.status})`,
             );
             setTimeout(checkStatus, 5000);
           }
@@ -197,7 +197,7 @@ const AddCourseModal = ({
           setUploadError(
             pollErr instanceof Error
               ? pollErr.message
-              : "Unable to check indexing status.",
+              : "Unable to check processing status.",
           );
           setIsUploading(false);
         }
@@ -274,7 +274,7 @@ const AddCourseModal = ({
             >
               <input
                 type="file"
-                accept="video/mp4"
+                accept="video/mp4,video/webm,video/quicktime"
                 onChange={handleFileSelect}
                 className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
               />
@@ -293,7 +293,7 @@ const AddCourseModal = ({
               )}
             </div>
 
-            {/* Question Mix & Target Sliders (Keep your existing UI) */}
+            {/* Question Mix & Target Sliders */}
             <div className="space-y-3">
               <div className="flex items-center justify-between gap-3">
                 <div className="flex items-center gap-2">
@@ -365,7 +365,7 @@ const AddCourseModal = ({
               />
             </div>
 
-            {/* Options List (Keep your existing UI) */}
+            {/* Options List */}
             <div className="space-y-3.5">
               <div className="flex items-center justify-between gap-3">
                 <div className="flex items-center gap-2">
@@ -408,8 +408,8 @@ const AddCourseModal = ({
 
             <div className="flex flex-col gap-2 border-t border-border/70 pt-3 sm:flex-row sm:items-center sm:justify-between">
               <p className="pr-2 text-xs text-muted-foreground">
-                AI Pipeline: Video is indexed by Twelve Labs before Gemini
-                generates your interactive quiz.
+                AI Pipeline: Video is processed directly by Gemini to
+                generate your interactive quiz in a single pass.
               </p>
               <Button
                 onClick={handleCreateCourse}
@@ -423,7 +423,7 @@ const AddCourseModal = ({
                       <span>Processing...</span>
                     </div>
                     {statusText && (
-                      <span className="text-[10px] font-normal opacity-80 mt-1">
+                      <span className="text-[10px] font-normal opacity-80 mt-1 text-center leading-tight">
                         {statusText}
                       </span>
                     )}
