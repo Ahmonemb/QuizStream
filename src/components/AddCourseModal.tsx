@@ -27,7 +27,6 @@ import {
   DEFAULT_COURSE_QUIZ_SETUP,
   normalizeCourseQuizSetup,
 } from "@/lib/app-types";
-// Ensure these three functions are exported in your videoApi.ts
 import { uploadVideoFile, getTaskStatus, analyzeVideo } from "@/lib/videoApi";
 
 const sessionQuestionTypes = [
@@ -104,6 +103,9 @@ const AddCourseModal = ({
   const [selectedQuestionTypes, setSelectedQuestionTypes] = useState<
     Set<string>
   >(new Set(DEFAULT_COURSE_QUIZ_SETUP.questionTypes));
+  
+  // New Auto mode state
+  const [isAutoQuestions, setIsAutoQuestions] = useState(false);
   const [questionTarget, setQuestionTarget] = useState([
     DEFAULT_COURSE_QUIZ_SETUP.questionTarget,
   ]);
@@ -156,6 +158,12 @@ const AddCourseModal = ({
       const uploadRes = await uploadVideoFile(selectedFile);
       const { videoId, taskId } = uploadRes;
 
+      // Determine the target to send to the backend
+      const targetValue = isAutoQuestions ? "auto" : questionTarget[0];
+      const promptTargetText = isAutoQuestions 
+        ? "the optimal number of" 
+        : questionTarget[0].toString();
+
       // 2. Poll for Gemini File Processing Status
       const checkStatus = async () => {
         try {
@@ -167,15 +175,15 @@ const AddCourseModal = ({
             // 3. Trigger Gemini Analysis (Single multimodal pass)
             await analyzeVideo(
               videoId,
-              questionTarget[0],
-              `Turn this video into ${questionTarget[0]} high-quality multiple-choice questions. 
-               Focus on these styles: ${Array.from(selectedQuestionTypes).join(", ")}.`,
+              targetValue,
+              `Turn this video into ${promptTargetText} high-quality multiple-choice questions. 
+               Focus on these styles: ${Array.from(selectedQuestionTypes).join(", ")}.`
             );
 
             // 4. Save the UI setup and Refresh the Context
             const quizSetup = normalizeCourseQuizSetup({
               questionTypes: Array.from(selectedQuestionTypes),
-              questionTarget: questionTarget[0],
+              questionTarget: isAutoQuestions ? -1 : questionTarget[0], 
               sessionOptions,
             });
 
@@ -235,6 +243,7 @@ const AddCourseModal = ({
     setSelectedFile(null);
     setSelectedQuestionTypes(new Set(DEFAULT_COURSE_QUIZ_SETUP.questionTypes));
     setQuestionTarget([DEFAULT_COURSE_QUIZ_SETUP.questionTarget]);
+    setIsAutoQuestions(false);
     setSessionOptions(DEFAULT_COURSE_QUIZ_SETUP.sessionOptions);
     setIsUploading(false);
     setStatusText(null);
@@ -293,7 +302,7 @@ const AddCourseModal = ({
               )}
             </div>
 
-            {/* Question Mix & Target Sliders */}
+            {/* Question Mix */}
             <div className="space-y-3">
               <div className="flex items-center justify-between gap-3">
                 <div className="flex items-center gap-2">
@@ -348,21 +357,46 @@ const AddCourseModal = ({
               </div>
             </div>
 
+            {/* Question Target with Auto Toggle */}
             <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <h2 className="text-base font-semibold">Question target</h2>
-                <span className="text-2xl font-bold text-primary">
-                  {questionTarget[0]}
+                <div className="flex items-center gap-4">
+                  <h2 className="text-base font-semibold">Question target</h2>
+                  <div className="flex items-center gap-2 rounded-full border border-border px-2.5 py-1 transition-all hover:border-primary/30">
+                    <Switch
+                      id="auto-questions"
+                      checked={isAutoQuestions}
+                      onCheckedChange={setIsAutoQuestions}
+                      className="data-[state=checked]:bg-primary h-4 w-7 [&_span]:h-3 [&_span]:w-3"
+                    />
+                    <div className="flex items-center gap-1.5">
+                      <Label
+                        htmlFor="auto-questions"
+                        className="text-xs font-medium cursor-pointer text-muted-foreground hover:text-foreground transition-colors"
+                      >
+                        Auto AI
+                      </Label>
+                      <span className="rounded-full bg-primary/10 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-primary ring-1 ring-inset ring-primary/20">
+                        Recommended
+                      </span>
+                    </div>
+                  </div>
+                </div>
+                <span className={`text-2xl font-bold ${isAutoQuestions ? "text-primary/70" : "text-primary"}`}>
+                  {isAutoQuestions ? "Auto" : questionTarget[0]}
                 </span>
               </div>
-              <Slider
-                value={questionTarget}
-                onValueChange={setQuestionTarget}
-                min={3}
-                max={20}
-                step={1}
-                className="w-full"
-              />
+              <div className={`transition-opacity duration-200 ${isAutoQuestions ? "opacity-40 pointer-events-none" : "opacity-100"}`}>
+                <Slider
+                  value={questionTarget}
+                  onValueChange={setQuestionTarget}
+                  min={3}
+                  max={20}
+                  step={1}
+                  className="w-full"
+                  disabled={isAutoQuestions}
+                />
+              </div>
             </div>
 
             {/* Options List */}

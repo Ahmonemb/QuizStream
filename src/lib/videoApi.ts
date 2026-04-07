@@ -44,7 +44,7 @@ export async function getTaskStatus(taskId: string) {
 }
 
 // 4. Centralized AI Analysis via Gemini (Used by Home.tsx)
-export async function analyzeVideo(videoId: string, questionCount: number, prompt: string) {
+export async function analyzeVideo(videoId: string, questionCount: number | string, prompt: string) {
   const response = await fetch('/api/analyze-video', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
